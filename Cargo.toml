@@ -4,3 +4,18 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+indicatif = "~0.17"
+tracing = "0.1.37"
+tracing-core = "0.1.30"
+tracing-subscriber = { version = "0.3.16" }
+
+[dev-dependencies]
+futures = "0.3.26"
+tokio = { version = "1.25.0", features = ["full"] }
+rand = { version = "0.8.5", features = ["std_rng"] }
+
+[lib]
+name = "tracing_indicatif"
+
+[[example]]
+name = "basic"
