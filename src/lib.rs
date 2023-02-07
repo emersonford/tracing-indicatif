@@ -3,8 +3,11 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use indicatif::{MultiProgress, ProgressBar};
-use tracing_core::Subscriber;
 use tracing_core::span;
+use tracing_core::Subscriber;
+use tracing_subscriber::fmt::format::DefaultFields;
+use tracing_subscriber::fmt::FormatFields;
+use tracing_subscriber::fmt::FormattedFields;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
@@ -33,19 +36,37 @@ impl<'a> MakeWriter<'a> for IndicatifWriter {
     }
 }
 
-pub struct IndicatifLayer<S> {
+pub struct IndicatifLayer<S, F = DefaultFields> {
     progress_bars: MultiProgress,
+    field_formatter: F,
     inner: PhantomData<S>,
 }
 
-impl<S> IndicatifLayer<S>
-where
-    S: Subscriber + for<'a> LookupSpan<'a>,
-{
+impl<S> IndicatifLayer<S> {
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<S> Default for IndicatifLayer<S> {
+    fn default() -> Self {
         Self {
             progress_bars: MultiProgress::new(),
+            field_formatter: DefaultFields::new(),
             inner: PhantomData,
+        }
+    }
+}
+
+impl<S, F> IndicatifLayer<S, F> {
+    pub fn fmt_fields<F2>(self, fmt_fields: F2) -> IndicatifLayer<S, F2>
+    where
+        F2: for<'writer> FormatFields<'writer> + 'static,
+    {
+        IndicatifLayer {
+            progress_bars: self.progress_bars,
+            field_formatter: fmt_fields,
+            inner: self.inner,
         }
     }
 
@@ -54,7 +75,7 @@ where
     ///
     /// This will result in all log messages being written to stderr and ensures the printing of
     /// the log messages does not interfere with the progress bars.
-    pub fn get_writer(&self) -> impl for<'writer> MakeWriter<'writer> {
+    pub fn get_writer(&self) -> IndicatifWriter {
         IndicatifWriter {
             // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
             progress_bars: self.progress_bars.clone(),
@@ -64,24 +85,28 @@ where
 
 struct IndicatifSpanContext {
     progress_bar: Option<ProgressBar>,
+    message: Option<String>,
 }
 
-impl<S> layer::Layer<S> for IndicatifLayer<S>
+impl<S, F> layer::Layer<S> for IndicatifLayer<S, F>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
+    F: for<'writer> FormatFields<'writer> + 'static,
 {
-    fn on_new_span(
-        &self,
-        _attrs: &span::Attributes<'_>,
-        id: &span::Id,
-        ctx: layer::Context<'_, S>,
-    ) {
+    fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, ctx: layer::Context<'_, S>) {
         let span = ctx
             .span(id)
             .expect("Span not found in context, this is a bug");
         let mut ext = span.extensions_mut();
 
-        ext.insert(IndicatifSpanContext { progress_bar: None });
+        let mut fields = FormattedFields::<F>::new(String::new());
+        let _ = self.field_formatter
+            .format_fields(fields.as_writer(), attrs);
+
+        ext.insert(IndicatifSpanContext {
+            progress_bar: None,
+            message: Some(format!("{}{{{}}}", span.name(), fields.fields)),
+        });
     }
 
     fn on_enter(&self, id: &span::Id, ctx: layer::Context<'_, S>) {
@@ -94,7 +119,13 @@ where
             // Start the progress bar when we enter the span for the first time.
             indicatif_ctx.progress_bar.get_or_insert_with(|| {
                 let pb = self.progress_bars.add(ProgressBar::new_spinner());
-                pb.set_message(span.name());
+                pb.set_message(
+                    indicatif_ctx
+                        .message
+                        .as_deref()
+                        .unwrap_or_else(|| span.name())
+                        .to_string(),
+                );
                 pb.enable_steady_tick(Duration::from_millis(50));
 
                 pb
