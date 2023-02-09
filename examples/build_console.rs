@@ -37,7 +37,7 @@ async fn build(unit: u64) {
 async fn main() {
     let indicatif_layer = IndicatifLayer::new().with_progress_style(
         ProgressStyle::with_template(
-            "{color_start}{span_child_prefix} {span_fields} -- {span_name} {wide_msg} {elapsed_subsec}{color_end}",
+            "{color_start}{span_child_prefix}{span_fields} -- {span_name} {wide_msg} {elapsed_subsec}{color_end}",
         )
         .unwrap()
         .with_key(
@@ -68,7 +68,7 @@ async fn main() {
                 let _ =write!(writer, "\x1b[0m");
             },
         ),
-    );
+    ).with_span_child_prefix_symbol("↳ ").with_span_child_prefix_spacing(" ");
 
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_writer()))

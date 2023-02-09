@@ -67,6 +67,8 @@ pub struct IndicatifLayer<S, F = DefaultFields> {
     progress_bars: MultiProgress,
     span_field_formatter: F,
     progress_style: ProgressStyle,
+    span_child_prefix_spacing: &'static str,
+    span_child_prefix_symbol: &'static str,
     inner: PhantomData<S>,
 }
 
@@ -85,6 +87,8 @@ impl<S> Default for IndicatifLayer<S> {
                 "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
             )
             .unwrap(),
+            span_child_prefix_spacing: "  ",
+            span_child_prefix_symbol: "↳ ",
             inner: PhantomData,
         }
     }
@@ -113,6 +117,8 @@ impl<S, F> IndicatifLayer<S, F> {
             progress_bars: self.progress_bars,
             span_field_formatter: formatter,
             progress_style: self.progress_style,
+            span_child_prefix_spacing: self.span_child_prefix_spacing,
+            span_child_prefix_symbol: self.span_child_prefix_symbol,
             inner: self.inner,
         }
     }
@@ -126,6 +132,16 @@ impl<S, F> IndicatifLayer<S, F> {
     ///   the span has.
     pub fn with_progress_style(mut self, style: ProgressStyle) -> Self {
         self.progress_style = style;
+        self
+    }
+
+    pub fn with_span_child_prefix_spacing(mut self, spacing: &'static str) -> Self {
+        self.span_child_prefix_spacing = spacing;
+        self
+    }
+
+    pub fn with_span_child_prefix_symbol(mut self, symbol: &'static str) -> Self {
+        self.span_child_prefix_symbol = symbol;
         self
     }
 }
@@ -191,7 +207,12 @@ where
                     Some(v) => {
                         indicatif_ctx.level = v.level + 1;
 
-                        format!("{}↳ ", "  ".repeat(indicatif_ctx.level.into()))
+                        format!(
+                            "{}{}",
+                            self.span_child_prefix_spacing
+                                .repeat(indicatif_ctx.level.into()),
+                            self.span_child_prefix_symbol
+                        )
                     }
                     None => String::new(),
                 };
