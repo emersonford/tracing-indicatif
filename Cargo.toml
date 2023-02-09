@@ -2,6 +2,9 @@
 name = "tracing-indicatif"
 version = "0.1.0"
 edition = "2021"
+description = "Automatically show indicatif progress bars for active tracing spans."
+license = "MIT"
+repository = "https://github.com/emersonford/tracing-indicatif"
 
 [dependencies]
 indicatif = "0.17.3"
