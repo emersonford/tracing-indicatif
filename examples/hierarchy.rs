@@ -23,10 +23,7 @@ async fn do_work(mut val: u64) -> u64 {
     tokio::time::sleep(sleep_time).await;
 
     if thread_rng().gen_bool(0.2) {
-        let (val1, val2) = tokio::join!(
-            do_sub_work(val),
-            do_sub_work(val),
-        );
+        let (val1, val2) = tokio::join!(do_sub_work(val), do_sub_work(val),);
 
         val = val1 + val2;
     } else {

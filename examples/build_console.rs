@@ -5,6 +5,7 @@ use indicatif::ProgressState;
 use indicatif::ProgressStyle;
 use rand::thread_rng;
 use rand::Rng;
+use tracing::info;
 use tracing::instrument;
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::layer::SubscriberExt;
@@ -18,6 +19,10 @@ async fn build_sub_unit(sub_unit: u64) {
     let sleep_time =
         thread_rng().gen_range(Duration::from_millis(5000)..Duration::from_millis(10000));
     tokio::time::sleep(sleep_time).await;
+
+    if thread_rng().gen_bool(0.2) {
+        info!("sub_unit did something!");
+    }
 }
 
 #[instrument]

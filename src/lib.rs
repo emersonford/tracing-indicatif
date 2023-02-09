@@ -15,6 +15,7 @@ use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 
 // TODO(emersonford): add support for limiting the number of concurrent progress bars
+//   (if we do this, should figure out how to use `set_move_target` to reduce flickering)
 // TODO(emersonford): add support for incrementing/non-spinner progress bars (maybe with
 // Span::current().increment_progress_bar() style API?)
 // TODO(emersonford): make child span progress bar stuff customizable (e.g. be able to disable
