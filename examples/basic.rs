@@ -26,10 +26,9 @@ async fn do_work(val: u64) -> u64 {
 #[tokio::main]
 async fn main() {
     let indicatif_layer = IndicatifLayer::new();
-    let indicatif_writer = indicatif_layer.get_writer();
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_writer))
+        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_writer()))
         .with(indicatif_layer)
         .init();
 

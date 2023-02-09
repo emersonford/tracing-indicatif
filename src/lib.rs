@@ -2,6 +2,8 @@ use std::io;
 use std::marker::PhantomData;
 use std::time::Duration;
 
+use indicatif::style::ProgressStyle;
+use indicatif::style::ProgressTracker;
 use indicatif::{MultiProgress, ProgressBar};
 use tracing_core::span;
 use tracing_core::Subscriber;
@@ -11,6 +13,29 @@ use tracing_subscriber::fmt::FormattedFields;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
+
+// TODO(emersonford): add support for limiting the number of concurrent progress bars
+// TODO(emersonford): add support for incrementing progress bars (maybe with
+// Span::current().increment_progress_bar() style API?)
+
+#[derive(Clone)]
+struct IndicatifProgressKey {
+    message: String,
+}
+
+impl ProgressTracker for IndicatifProgressKey {
+    fn clone_box(&self) -> Box<dyn ProgressTracker> {
+        Box::new(self.clone())
+    }
+
+    fn tick(&mut self, _: &indicatif::ProgressState, _: std::time::Instant) {}
+
+    fn reset(&mut self, _: &indicatif::ProgressState, _: std::time::Instant) {}
+
+    fn write(&self, _: &indicatif::ProgressState, w: &mut dyn std::fmt::Write) {
+        let _ = w.write_str(&self.message);
+    }
+}
 
 // TODO(emersonford): find a cleaner way to integrate this layer with fmt::Layer.
 #[derive(Clone)]
@@ -38,7 +63,8 @@ impl<'a> MakeWriter<'a> for IndicatifWriter {
 
 pub struct IndicatifLayer<S, F = DefaultFields> {
     progress_bars: MultiProgress,
-    field_formatter: F,
+    span_field_formatter: F,
+    progress_style: ProgressStyle,
     inner: PhantomData<S>,
 }
 
@@ -52,24 +78,15 @@ impl<S> Default for IndicatifLayer<S> {
     fn default() -> Self {
         Self {
             progress_bars: MultiProgress::new(),
-            field_formatter: DefaultFields::new(),
+            span_field_formatter: DefaultFields::new(),
+            progress_style: ProgressStyle::with_template("{spinner} {span_name}{{{span_fields}}}")
+                .unwrap(),
             inner: PhantomData,
         }
     }
 }
 
 impl<S, F> IndicatifLayer<S, F> {
-    pub fn fmt_fields<F2>(self, fmt_fields: F2) -> IndicatifLayer<S, F2>
-    where
-        F2: for<'writer> FormatFields<'writer> + 'static,
-    {
-        IndicatifLayer {
-            progress_bars: self.progress_bars,
-            field_formatter: fmt_fields,
-            inner: self.inner,
-        }
-    }
-
     /// Returns the writer that should be passed into
     /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
     ///
@@ -81,11 +98,35 @@ impl<S, F> IndicatifLayer<S, F> {
             progress_bars: self.progress_bars.clone(),
         }
     }
+
+    /// Specify the formatter for span fields, the result of which will be available as the
+    /// progress bar template key `span_fields`.
+    pub fn with_span_field_formatter<F2>(self, formatter: F2) -> IndicatifLayer<S, F2>
+    where
+        F2: for<'writer> FormatFields<'writer> + 'static,
+    {
+        IndicatifLayer {
+            progress_bars: self.progress_bars,
+            span_field_formatter: formatter,
+            progress_style: self.progress_style,
+            inner: self.inner,
+        }
+    }
+
+    /// Override the style used for displayed progress bars.
+    ///
+    /// Two additional keys are available for the progress bar template:
+    /// * `span_fields` - the formatted string of this span's fields
+    /// * `span_name` - the name of the span
+    pub fn with_progress_style(mut self, style: ProgressStyle) -> Self {
+        self.progress_style = style;
+        self
+    }
 }
 
 struct IndicatifSpanContext {
     progress_bar: Option<ProgressBar>,
-    message: Option<String>,
+    span_fields_formatted: Option<String>,
 }
 
 impl<S, F> layer::Layer<S> for IndicatifLayer<S, F>
@@ -100,12 +141,13 @@ where
         let mut ext = span.extensions_mut();
 
         let mut fields = FormattedFields::<F>::new(String::new());
-        let _ = self.field_formatter
+        let _ = self
+            .span_field_formatter
             .format_fields(fields.as_writer(), attrs);
 
         ext.insert(IndicatifSpanContext {
             progress_bar: None,
-            message: Some(format!("{}{{{}}}", span.name(), fields.fields)),
+            span_fields_formatted: Some(fields.fields),
         });
     }
 
@@ -116,17 +158,29 @@ where
         let mut ext = span.extensions_mut();
 
         if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
+            let span_name = span.name().to_string();
+            let span_fields_formatted = indicatif_ctx
+                .span_fields_formatted
+                .to_owned()
+                .unwrap_or_else(String::new);
+
             // Start the progress bar when we enter the span for the first time.
-            indicatif_ctx.progress_bar.get_or_insert_with(|| {
-                let pb = self.progress_bars.add(ProgressBar::new_spinner());
-                pb.set_message(
-                    indicatif_ctx
-                        .message
-                        .as_deref()
-                        .unwrap_or_else(|| span.name())
-                        .to_string(),
+            indicatif_ctx.progress_bar.get_or_insert_with(move || {
+                let pb = self.progress_bars.add(
+                    ProgressBar::new_spinner().with_style(
+                        self.progress_style
+                            .clone()
+                            .with_key("span_name", IndicatifProgressKey { message: span_name })
+                            .with_key(
+                                "span_fields",
+                                IndicatifProgressKey {
+                                    message: span_fields_formatted,
+                                },
+                            ),
+                    ),
                 );
-                pb.enable_steady_tick(Duration::from_millis(50));
+
+                pb.enable_steady_tick(Duration::from_millis(100));
 
                 pb
             });
