@@ -22,7 +22,16 @@ async fn do_work(mut val: u64) -> u64 {
     let sleep_time = thread_rng().gen_range(Duration::from_millis(250)..Duration::from_millis(500));
     tokio::time::sleep(sleep_time).await;
 
-    val = do_sub_work(val).await;
+    if thread_rng().gen_bool(0.2) {
+        let (val1, val2) = tokio::join!(
+            do_sub_work(val),
+            do_sub_work(val),
+        );
+
+        val = val1 + val2;
+    } else {
+        val = do_sub_work(val).await;
+    }
 
     let sleep_time =
         thread_rng().gen_range(Duration::from_millis(500)..Duration::from_millis(1000));

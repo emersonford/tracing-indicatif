@@ -16,6 +16,7 @@ tracing-subscriber = { version = "0.3.16" }
 futures = "0.3.26"
 tokio = { version = "1.25.0", features = ["full"] }
 rand = { version = "0.8.5", features = ["std_rng"] }
+console = "0.15.5"
 
 [lib]
 name = "tracing_indicatif"
@@ -25,3 +26,6 @@ name = "basic"
 
 [[example]]
 name = "hierarchy"
+
+[[example]]
+name = "build_console"
