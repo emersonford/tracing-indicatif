@@ -15,8 +15,10 @@ use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 
 // TODO(emersonford): add support for limiting the number of concurrent progress bars
-// TODO(emersonford): add support for incrementing progress bars (maybe with
+// TODO(emersonford): add support for incrementing/non-spinner progress bars (maybe with
 // Span::current().increment_progress_bar() style API?)
+// TODO(emersonford): make child span progress bar stuff customizable (e.g. be able to disable
+// showing child progress bars below parent one, disable the child indent, etc).
 
 #[derive(Clone)]
 struct IndicatifProgressKey {
@@ -79,8 +81,10 @@ impl<S> Default for IndicatifLayer<S> {
         Self {
             progress_bars: MultiProgress::new(),
             span_field_formatter: DefaultFields::new(),
-            progress_style: ProgressStyle::with_template("{spinner} {span_name}{{{span_fields}}}")
-                .unwrap(),
+            progress_style: ProgressStyle::with_template(
+                "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
+            )
+            .unwrap(),
             inner: PhantomData,
         }
     }
@@ -118,6 +122,8 @@ impl<S, F> IndicatifLayer<S, F> {
     /// Two additional keys are available for the progress bar template:
     /// * `span_fields` - the formatted string of this span's fields
     /// * `span_name` - the name of the span
+    /// * `span_child_prefix` - a prefix that increase in size according to the number of parents
+    ///   the span has.
     pub fn with_progress_style(mut self, style: ProgressStyle) -> Self {
         self.progress_style = style;
         self
@@ -127,6 +133,7 @@ impl<S, F> IndicatifLayer<S, F> {
 struct IndicatifSpanContext {
     progress_bar: Option<ProgressBar>,
     span_fields_formatted: Option<String>,
+    level: u16,
 }
 
 impl<S, F> layer::Layer<S> for IndicatifLayer<S, F>
@@ -148,6 +155,7 @@ where
         ext.insert(IndicatifSpanContext {
             progress_bar: None,
             span_fields_formatted: Some(fields.fields),
+            level: 0,
         });
     }
 
@@ -158,32 +166,73 @@ where
         let mut ext = span.extensions_mut();
 
         if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
+            // Get the next parent span with a progress bar.
+            let parent_span = ctx.span_scope(id).and_then(|scope| {
+                scope.skip(1).find(|span| {
+                    let ext = span.extensions();
+
+                    ext.get::<IndicatifSpanContext>().is_some()
+                })
+            });
+            let parent_span_ext = parent_span.as_ref().map(|span| span.extensions());
+            let parent_indicatif_ctx = parent_span_ext
+                .as_ref()
+                .map(|ext| ext.get::<IndicatifSpanContext>().unwrap());
+
             let span_name = span.name().to_string();
             let span_fields_formatted = indicatif_ctx
                 .span_fields_formatted
                 .to_owned()
-                .unwrap_or_else(String::new);
+                .unwrap_or_default();
 
             // Start the progress bar when we enter the span for the first time.
-            indicatif_ctx.progress_bar.get_or_insert_with(move || {
-                let pb = self.progress_bars.add(
-                    ProgressBar::new_spinner().with_style(
-                        self.progress_style
-                            .clone()
-                            .with_key("span_name", IndicatifProgressKey { message: span_name })
-                            .with_key(
-                                "span_fields",
-                                IndicatifProgressKey {
-                                    message: span_fields_formatted,
-                                },
-                            ),
-                    ),
+            if indicatif_ctx.progress_bar.is_none() {
+                let span_child_prefix = match parent_indicatif_ctx {
+                    Some(v) => {
+                        indicatif_ctx.level = v.level + 1;
+
+                        format!("{}↳ ", "  ".repeat(indicatif_ctx.level.into()))
+                    }
+                    None => String::new(),
+                };
+
+                let pb = ProgressBar::new_spinner().with_style(
+                    self.progress_style
+                        .clone()
+                        .with_key("span_name", IndicatifProgressKey { message: span_name })
+                        .with_key(
+                            "span_fields",
+                            IndicatifProgressKey {
+                                message: span_fields_formatted,
+                            },
+                        )
+                        .with_key(
+                            "span_child_prefix",
+                            IndicatifProgressKey {
+                                message: span_child_prefix,
+                            },
+                        ),
                 );
+
+                let pb = match parent_indicatif_ctx {
+                    Some(v) => {
+                        // Parent spans should always have been entered at least once, meaning if
+                        // they have an `IndicatifSpanContext`, they have a progress bar. So we can
+                        // unwrap safely here.
+                        let parent_pb: &ProgressBar = v
+                            .progress_bar
+                            .as_ref()
+                            .expect("Parent span should have a progress bar; this is a bug");
+
+                        self.progress_bars.insert_after(parent_pb, pb)
+                    }
+                    None => self.progress_bars.add(pb),
+                };
 
                 pb.enable_steady_tick(Duration::from_millis(100));
 
-                pb
-            });
+                indicatif_ctx.progress_bar = Some(pb);
+            }
         }
     }
 
