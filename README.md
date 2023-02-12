@@ -1,4 +1,7 @@
 # tracing-indicatif
+[![Documentation](https://docs.rs/tracing-indicatif/badge.svg)](https://docs.rs/tracing-indicatif/)
+[![Crates.io](https://img.shields.io/crates/v/tracing-indicatif.svg)](https://crates.io/crates/tracing-indicatif)
+
 A [tracing](https://docs.rs/tracing/latest/tracing/) layer that automatically creates and manages [indicatif](https://docs.rs/indicatif/latest/indicatif/index.html) progress bars for active spans.
 
 Progress bars are a great way to make your CLIs feel more responsive. However,

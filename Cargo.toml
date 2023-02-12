@@ -5,6 +5,10 @@ edition = "2021"
 description = "Tracing layer that automatically creates and manages progress bars for active spans."
 license = "MIT"
 repository = "https://github.com/emersonford/tracing-indicatif"
+categories = ["command-line-interface"]
+keywords = ["cli", "progress", "progressbar", "progress-bar", "tracing"]
+documentation = "https://docs.rs/tracing-indicatif"
+exclude = ["*.gif"]
 
 [dependencies]
 indicatif = "0.17.3"
