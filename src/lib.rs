@@ -1,3 +1,18 @@
+//! See [IndicatifLayer] for the main documentation.
+//!
+//! An easy quick start for this crate is:
+//! ```
+//! tracing_subscriber::registry()
+//!     .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_fmt_writer()))
+//!     .with(indicatif_layer)
+//!     .init();
+//! ```
+//!
+//! And see the `examples` folder for examples of how to customize the layer / progress bar
+//! appearance.
+//!
+//! It is highly recommended you pass `indicatif_layer.get_fmt_writer()` to your `fmt::layer()` to
+//! prevent the progress bars from clobbering any console logs.
 use std::collections::VecDeque;
 use std::io;
 use std::marker::PhantomData;
