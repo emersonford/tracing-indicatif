@@ -8,7 +8,7 @@ Progress bars are a great way to make your CLIs feel more responsive. However,
 adding and managing progress bars in your libraries can be invasive, unergonomic,
 and difficult to keep track of.
 
-This library mains to make it easy to show progress bars for your CLI by tying
+This library aims to make it easy to show progress bars for your CLI by tying
 progress bars to [tracing spans](https://docs.rs/tracing/latest/tracing/#spans).
 For CLIs/libraries already using tracing spans, this allow for a dead simple (3
 line) code change to enable a smooth progress bar experience for your program.
