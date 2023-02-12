@@ -31,8 +31,12 @@ async fn build(unit: u64) {
         thread_rng().gen_range(Duration::from_millis(2500)..Duration::from_millis(5000));
     tokio::time::sleep(sleep_time).await;
 
-    if thread_rng().gen_bool(0.2) {
-        tokio::join!(build_sub_unit(0), build_sub_unit(1),);
+    let rand_num: f64 = thread_rng().gen();
+
+    if rand_num < 0.1 {
+        tokio::join!(build_sub_unit(0), build_sub_unit(1), build_sub_unit(2));
+    } else if rand_num < 0.3 {
+        tokio::join!(build_sub_unit(0), build_sub_unit(1));
     } else {
         build_sub_unit(0).await;
     }
@@ -59,29 +63,31 @@ async fn main() {
                 let elapsed = state.elapsed();
 
                 if elapsed > Duration::from_secs(8) {
+                    // Red
                     let _ = write!(writer, "\x1b[{}m", 1 + 30);
                 } else if elapsed > Duration::from_secs(4) {
+                    // Yellow
                     let _ = write!(writer, "\x1b[{}m", 3 + 30);
-                } else {
-                    let _ = write!(writer, "\x1b[{}m", 7 + 30);
                 }
             },
         )
         .with_key(
             "color_end",
-            |_: &ProgressState, writer: &mut dyn std::fmt::Write| {
-                let _ =write!(writer, "\x1b[0m");
+            |state: &ProgressState, writer: &mut dyn std::fmt::Write| {
+                if state.elapsed() > Duration::from_secs(4) {
+                    let _ =write!(writer, "\x1b[0m");
+                }
             },
         ),
-    ).with_span_child_prefix_symbol("↳ ").with_span_child_prefix_spacing(" ");
+    ).with_span_child_prefix_symbol("↳ ").with_span_child_prefix_indent(" ");
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_writer()))
+        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_fmt_writer()))
         .with(indicatif_layer)
         .init();
 
     stream::iter((0..20).map(|val| build(val)))
-        .buffer_unordered(5)
+        .buffer_unordered(7)
         .collect::<Vec<()>>()
         .await;
 }
