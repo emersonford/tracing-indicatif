@@ -26,6 +26,7 @@ use tracing_subscriber::registry::SpanRef;
 // to the progress increment?)
 // TODO(emersonford): allow specifying progress bar style per span
 // TODO(emersonford): update format field in span's `on_record`.
+// TODO(emersonford): expose an stdout writer
 
 #[derive(Clone)]
 struct IndicatifProgressKey {
@@ -48,8 +49,8 @@ impl ProgressTracker for IndicatifProgressKey {
 
 // TODO(emersonford): find a cleaner way to integrate this layer with fmt::Layer.
 /// A wrapper around [std::io::stderr()] that ensures log entries from tracing's fmt layer are
-/// printed above any active progress bars, and ensures those log entries do not conflict with
-/// running progress bars.
+/// printed above any active progress bars to ensure those log entries are not clobbered by
+/// active progress bars.
 #[derive(Clone)]
 pub struct IndicatifWriter {
     progress_bars: MultiProgress,
@@ -189,6 +190,8 @@ impl ProgressBarManager {
     fn show_progress_bar(&mut self, pb_span_ctx: &mut IndicatifSpanContext, span_id: &span::Id) {
         if self.active_progress_bars < self.max_progress_bars {
             let pb = match pb_span_ctx.parent_progress_bar {
+                // TODO(emersonford): fix span ordering in progress bar, because we use
+                // `insert_after`, we end up showing the child progress bars in reverse order.
                 Some(ref parent_pb) => self
                     .mp
                     .insert_after(parent_pb, pb_span_ctx.progress_bar.take().unwrap()),
@@ -269,6 +272,16 @@ impl ProgressBarManager {
     }
 }
 
+/// The layer that handles creating and managing indicatif progress bars for active spans. This
+/// layer must be registered with your tracing subscriber to have any effect.
+///
+/// Under the hood, this just uses indicatif's [MultiProgress] struct to manage individual
+/// [ProgressBar] instances per span.
+///
+/// This layer performs no filtering on which spans to show progress bars for. It is expected one
+/// attaches [filters to this
+/// layer](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/index.html#filtering-with-layers)
+/// to control which spans actually have progress bars generated for them.
 pub struct IndicatifLayer<S, F = DefaultFields> {
     pb_manager: Mutex<ProgressBarManager>,
     span_field_formatter: F,
@@ -283,7 +296,7 @@ impl<S> IndicatifLayer<S> {
     ///
     /// The default settings for this layer are 7 progress bars maximum and progress bars in the
     /// style of:
-    /// ```
+    /// ```text
     /// ⠄ do_work{val=0}
     /// ⠄ do_work{val=1}
     /// ⠄ do_work{val=2}
@@ -338,6 +351,8 @@ impl<S, F> IndicatifLayer<S, F> {
 
     /// Set the formatter for span fields, the result of which will be available as the
     /// progress bar template key `span_fields`.
+    ///
+    /// The default is the [DefaultFields] formatter.
     pub fn with_span_field_formatter<F2>(self, formatter: F2) -> IndicatifLayer<S, F2>
     where
         F2: for<'writer> FormatFields<'writer> + 'static,
@@ -359,6 +374,8 @@ impl<S, F> IndicatifLayer<S, F> {
     /// * `span_name` - the name of the span
     /// * `span_child_prefix` - a prefix that increase in size according to the number of parents
     ///   the span has.
+    ///
+    /// The default template is `{span_child_prefix}{spinner} {span_name}{{{span_fields}}}`.
     pub fn with_progress_style(mut self, style: ProgressStyle) -> Self {
         self.progress_style = style;
         self
@@ -376,20 +393,20 @@ impl<S, F> IndicatifLayer<S, F> {
 
     /// Set the symbol used to denote this is a progress bar from a child span.
     ///
-    /// This ultimately results in the `{span_child_prefix}` progress bar key consisting of the
-    /// child prefix indent + the child prefix symbol.
+    /// This is ultimately concatenated with the child prefix indent to make the
+    /// `span_child_prefix` progress bar key.
     pub fn with_span_child_prefix_symbol(mut self, symbol: &'static str) -> Self {
         self.span_child_prefix_symbol = symbol;
         self
     }
 
-    // Set the maximum number of progress bars that will be displayed, and the possible footer
-    // "progress bar" that displays when there are more progress bars than can be displayed.
-    //
-    // `footer_style` dictates the appearance of the footer, and the footer will only appear if
-    // there are more progress bars than can be displayed. If it is `None`, no footer will be
-    // displayed. `footer_style` as the following keys available to it:
-    // * `pending_progress_bars` - the number of progress bars waiting to be shown
+    /// Set the maximum number of progress bars that will be displayed, and the possible footer
+    /// "progress bar" that displays when there are more progress bars than can be displayed.
+    ///
+    /// `footer_style` dictates the appearance of the footer, and the footer will only appear if
+    /// there are more progress bars than can be displayed. If it is `None`, no footer will be
+    /// displayed. `footer_style` has the following keys available to it:
+    /// * `pending_progress_bars` - the number of progress bars waiting to be shown
     pub fn with_max_progress_bars(
         mut self,
         max_progress_bars: u64,
@@ -399,9 +416,6 @@ impl<S, F> IndicatifLayer<S, F> {
         self
     }
 }
-
-// non-pub methods
-impl<S, F> IndicatifLayer<S, F> {}
 
 impl<S, F> layer::Layer<S> for IndicatifLayer<S, F>
 where
