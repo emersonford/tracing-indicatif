@@ -1,8 +1,8 @@
 [package]
 name = "tracing-indicatif"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Automatically show indicatif progress bars for active tracing spans."
+description = "Tracing layer that automatically creates and manages progress bars for active spans."
 license = "MIT"
 repository = "https://github.com/emersonford/tracing-indicatif"
 
