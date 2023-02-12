@@ -16,7 +16,8 @@ This eliminates having to have code in your libraries to manually manage
 progress bar instances.
 
 This ends up working quite well as progress bars are fundamentally tracking the
-lifetime of some "span" (whether that "span" is defined explicitly or implicitly).
+lifetime of some "span" (whether that "span" is defined explicitly or implicitly),
+so might as well make that relationship explicit.
 
 ## Demo
 See the [`examples`](https://github.com/emersonford/tracing-indicatif/tree/main/examples)
