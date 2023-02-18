@@ -42,10 +42,7 @@ pub mod writer;
 use pb_manager::ProgressBarManager;
 pub use writer::IndicatifWriter;
 
-// TODO(emersonford): add support for incrementing/non-spinner progress bars (maybe with
-// Span::current().increment_progress_bar() style API? or maybe by spinning one of the span's field
-// to the progress increment?)
-// TODO(emersonford): allow specifying progress bar style per span
+// TODO(emersonford): add support for pinning a progress bar's progress to a specific span field
 // TODO(emersonford): update format field in span's `on_record`.
 
 #[derive(Clone)]
@@ -164,8 +161,8 @@ impl IndicatifSpanContext {
 /// Progress bars will be started the very first time a span is [entered](tracing::Span::enter) and
 /// will finish when the span is [closed](tracing_subscriber::Layer::on_close).
 ///
-/// Under the hood, this just uses indicatif's [indicatif::MultiProgress] struct to manage
-/// individual [indicatif::ProgressBar] instances per span.
+/// Under the hood, this just uses indicatif's [MultiProgress](indicatif::MultiProgress) struct to
+/// manage individual [ProgressBar](indicatif::ProgressBar) instances per span.
 pub struct IndicatifLayer<S, F = DefaultFields> {
     pb_manager: Mutex<ProgressBarManager>,
     span_field_formatter: F,

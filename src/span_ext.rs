@@ -5,6 +5,8 @@ use tracing::Span;
 use crate::IndicatifSpanContext;
 use crate::WithContext;
 
+// TODO(emersonford): add more progress bar mutation methods
+
 fn apply_to_indicatif_span(span: &Span, f: impl FnMut(&mut IndicatifSpanContext)) {
     span.with_subscriber(|(id, subscriber)| {
         if let Some(get_context) = subscriber.downcast_ref::<WithContext>() {
