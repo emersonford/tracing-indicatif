@@ -82,7 +82,7 @@ async fn main() {
     ).with_span_child_prefix_symbol("↳ ").with_span_child_prefix_indent(" ");
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_fmt_writer()))
+        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_stderr_writer()))
         .with(indicatif_layer)
         .init();
 

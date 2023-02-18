@@ -2,8 +2,10 @@
 //!
 //! An easy quick start for this crate is:
 //! ```
+//! let indicatif_layer = IndicatifLayer::new();
+//!
 //! tracing_subscriber::registry()
-//!     .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_fmt_writer()))
+//!     .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_stderr_writer()))
 //!     .with(indicatif_layer)
 //!     .init();
 //! ```
@@ -11,35 +13,34 @@
 //! And see the `examples` folder for examples of how to customize the layer / progress bar
 //! appearance.
 //!
-//! It is highly recommended you pass `indicatif_layer.get_fmt_writer()` to your `fmt::layer()` to
-//! prevent the progress bars from clobbering any console logs.
-use std::io;
+//! It is highly recommended you pass `indicatif_layer.get_stderr_writer()` or
+//! `indicatif_layer.get_stdout_writer()` to your `fmt::layer()` (depending on where you want to
+//! emit tracing logs) to prevent progress bars from clobbering any console logs.
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
 use indicatif::style::ProgressStyle;
 use indicatif::style::ProgressTracker;
-use indicatif::MultiProgress;
 use indicatif::ProgressBar;
 use tracing_core::span;
 use tracing_core::Subscriber;
 use tracing_subscriber::fmt::format::DefaultFields;
 use tracing_subscriber::fmt::FormatFields;
 use tracing_subscriber::fmt::FormattedFields;
-use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 
 mod pb_manager;
+mod writer;
 
 use pb_manager::ProgressBarManager;
+pub use writer::IndicatifWriter;
 
 // TODO(emersonford): add support for incrementing/non-spinner progress bars (maybe with
 // Span::current().increment_progress_bar() style API? or maybe by spinning one of the span's field
 // to the progress increment?)
 // TODO(emersonford): allow specifying progress bar style per span
 // TODO(emersonford): update format field in span's `on_record`.
-// TODO(emersonford): expose an stdout writer
 
 #[derive(Clone)]
 struct IndicatifProgressKey {
@@ -57,33 +58,6 @@ impl ProgressTracker for IndicatifProgressKey {
 
     fn write(&self, _: &indicatif::ProgressState, w: &mut dyn std::fmt::Write) {
         let _ = w.write_str(&self.message);
-    }
-}
-
-// TODO(emersonford): find a cleaner way to integrate this layer with fmt::Layer.
-/// A wrapper around [std::io::stderr()] that ensures log entries from tracing's fmt layer are
-/// printed above any active progress bars to ensure those log entries are not clobbered by
-/// active progress bars.
-#[derive(Clone)]
-pub struct IndicatifWriter {
-    progress_bars: MultiProgress,
-}
-
-impl io::Write for IndicatifWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.progress_bars.suspend(|| io::stderr().write(buf))
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.progress_bars.suspend(|| io::stderr().flush())
-    }
-}
-
-impl<'a> MakeWriter<'a> for IndicatifWriter {
-    type Writer = IndicatifWriter;
-
-    fn make_writer(&'a self) -> Self::Writer {
-        self.clone()
     }
 }
 
@@ -172,16 +146,35 @@ impl<S> Default for IndicatifLayer<S> {
 
 // pub methods
 impl<S, F> IndicatifLayer<S, F> {
-    /// Returns the writer that should be passed into
-    /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
+    #[deprecated(since = "0.2.3", note = "use get_stderr_writer() instead")]
+    pub fn get_fmt_writer(&self) -> IndicatifWriter<writer::Stderr> {
+        self.get_stderr_writer()
+    }
+
+    /// Returns the a writer for [std::io::Stderr] that ensures its output will not be clobbered by
+    /// active progress bars.
     ///
-    /// This will result in all log messages being written to stderr and ensures the printing of
-    /// the log messages does not interfere with the progress bars.
-    pub fn get_fmt_writer(&self) -> IndicatifWriter {
-        IndicatifWriter {
-            // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
-            progress_bars: self.pb_manager.lock().unwrap().mp.clone(),
-        }
+    /// Instead of `eprintln!(...)` prefer `writeln!(indicatif_layer.get_stderr_writer(), ...)`
+    /// instead to ensure your output is not clobbered by active progress bars.
+    ///
+    /// If one wishes tracing logs to be output to stderr, this should be passed into
+    /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
+    pub fn get_stderr_writer(&self) -> IndicatifWriter<writer::Stderr> {
+        // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
+        IndicatifWriter::new(self.pb_manager.lock().unwrap().mp.clone())
+    }
+
+    /// Returns the a writer for [std::io::Stdout] that ensures its output will not be clobbered by
+    /// active progress bars.
+    ///
+    /// Instead of `println!(...)` prefer `writeln!(indicatif_layer.get_stdout_writer(), ...)`
+    /// instead to ensure your output is not clobbered by active progress bars.
+    ///
+    /// If one wishes tracing logs to be output to stdout, this should be passed into
+    /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
+    pub fn get_stdout_writer(&self) -> IndicatifWriter<writer::Stdout> {
+        // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
+        IndicatifWriter::new(self.pb_manager.lock().unwrap().mp.clone())
     }
 
     /// Set the formatter for span fields, the result of which will be available as the

@@ -33,3 +33,6 @@ name = "child_spans"
 
 [[example]]
 name = "build_console"
+
+[[example]]
+name = "per_span_style"

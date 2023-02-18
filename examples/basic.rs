@@ -28,7 +28,7 @@ async fn main() {
     let indicatif_layer = IndicatifLayer::new();
 
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_fmt_writer()))
+        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_stderr_writer()))
         .with(indicatif_layer)
         .init();
 
