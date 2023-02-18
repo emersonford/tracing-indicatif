@@ -6,13 +6,18 @@ use indicatif::ProgressStyle;
 use rand::thread_rng;
 use rand::Rng;
 use tracing::info;
+use tracing::info_span;
 use tracing::instrument;
+use tracing_indicatif::span_ext::IndicatifSpanExt;
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-// TODO(emersonford): can we show a "header" to the progress bars like superconsole does?
-// https://github.com/facebookincubator/superconsole
+fn elapsed_subsec(state: &ProgressState, writer: &mut dyn std::fmt::Write) {
+    let seconds = state.elapsed().as_secs();
+    let sub_seconds = (state.elapsed().as_millis() % 1000) / 100;
+    let _ = writer.write_str(&format!("{}.{}s", seconds, sub_seconds));
+}
 
 #[instrument]
 async fn build_sub_unit(sub_unit: u64) {
@@ -51,11 +56,7 @@ async fn main() {
         .unwrap()
         .with_key(
             "elapsed_subsec",
-            |state: &ProgressState, writer: &mut dyn std::fmt::Write| {
-                let seconds = state.elapsed().as_secs();
-                let sub_seconds = (state.elapsed().as_millis() % 1000) / 100;
-                let _ = writer.write_str(&format!("{}.{}s", seconds, sub_seconds));
-            },
+            elapsed_subsec,
         )
         .with_key(
             "color_start",
@@ -85,6 +86,21 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_stderr_writer()))
         .with(indicatif_layer)
         .init();
+
+    let header_span = info_span!("header");
+    header_span.pb_set_style(
+        &ProgressStyle::with_template(
+            "Working on tasks for command: `build`. {wide_msg} {elapsed_subsec}\n{wide_bar}",
+        )
+        .unwrap()
+        .with_key("elapsed_subsec", elapsed_subsec)
+        .progress_chars("---"),
+    );
+    header_span.pb_start();
+
+    // Bit of a hack to show a full "-----" line underneath the header.
+    header_span.pb_set_length(1);
+    header_span.pb_set_position(1);
 
     stream::iter((0..20).map(|val| build(val)))
         .buffer_unordered(7)

@@ -1,3 +1,4 @@
+//! Helpers to prevent progress bars from clobbering your console output.
 use std::io;
 use std::marker::PhantomData;
 
@@ -6,7 +7,9 @@ use tracing_subscriber::fmt::MakeWriter;
 
 pub trait WriterTarget: private::Sealed {}
 
+/// Marker for where the [IndicatifWriter] should write to.
 pub struct Stdout {}
+/// Marker for where the [IndicatifWriter] should write to.
 pub struct Stderr {}
 
 impl WriterTarget for Stdout {}

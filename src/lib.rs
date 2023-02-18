@@ -2,6 +2,10 @@
 //!
 //! An easy quick start for this crate is:
 //! ```
+//! use tracing_subscriber::layer::SubscriberExt;
+//! use tracing_subscriber::util::SubscriberInitExt;
+//! use tracing_indicatif::IndicatifLayer;
+//!
 //! let indicatif_layer = IndicatifLayer::new();
 //!
 //! tracing_subscriber::registry()
@@ -16,6 +20,7 @@
 //! It is highly recommended you pass `indicatif_layer.get_stderr_writer()` or
 //! `indicatif_layer.get_stdout_writer()` to your `fmt::layer()` (depending on where you want to
 //! emit tracing logs) to prevent progress bars from clobbering any console logs.
+use std::any::TypeId;
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
@@ -31,6 +36,7 @@ use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 
 mod pb_manager;
+pub mod span_ext;
 pub mod writer;
 
 use pb_manager::ProgressBarManager;
@@ -61,21 +67,90 @@ impl ProgressTracker for IndicatifProgressKey {
     }
 }
 
+// Suppose we have a [Span] (maybe gotten via [Span::current]) and want access to our
+// [IndicatifLayer] instance from it. The way to do this would be something like
+// ```
+// span.with_subscriber(|(id, subscriber)| {
+//   let maybe_layer = subscriber.downcast_ref::<IndicatifLayer<S, F>>();
+//   ...
+// });
+// ```
+// but this has the problem that, because `IndicatifLayer` has generic params, we need to pass
+// a concrete type `S` and `F` to that `downcast_ref` call. And the callsite doesn't know what
+// those concrete types are.
+//
+// Therefore, we use this `WithContext` struct (along with the defined `downcast_raw` method) to do
+// a form of indirection to something that does already know (or "remembers") what those concrete
+// types `S` and `F` are, so the callsite doesn't need to care about it.
+//
+// This doesn't actually return a reference to our [IndicatifLayer] instance as we only care about
+// the associated span data, so we just pass that to the corresponding `fn`.
+//
+// See:
+// * https://github.com/tokio-rs/tracing/blob/a0126b2e2d465e8e6d514acdf128fcef5b863d27/tracing-error/src/subscriber.rs#L32
+// * https://github.com/tokio-rs/tracing/blob/a0126b2e2d465e8e6d514acdf128fcef5b863d27/tracing-opentelemetry/src/subscriber.rs#L74
+#[allow(clippy::type_complexity)]
+pub(crate) struct WithContext(
+    fn(&tracing::Dispatch, &span::Id, f: &mut dyn FnMut(&mut IndicatifSpanContext)),
+);
+
+impl WithContext {
+    pub(crate) fn with_context(
+        &self,
+        dispatch: &tracing::Dispatch,
+        id: &span::Id,
+        mut f: impl FnMut(&mut IndicatifSpanContext),
+    ) {
+        (self.0)(dispatch, id, &mut f)
+    }
+}
+
 struct IndicatifSpanContext {
     // If this progress bar is `Some(pb)` and `pb.is_hidden`, it means the progress bar is queued.
     // We start the progress bar in hidden mode so things like `elapsed` are accurate.
     //
     // If this progress bar is `None`, it means the span has not yet been entered.
     progress_bar: Option<ProgressBar>,
+    // If `Some`, the progress bar will use this style when the span is entered for the first time.
+    init_progress_style: Option<ProgressStyle>,
     // Notes:
     // * A parent span cannot close before its child spans, so if a parent span has a progress bar,
     //   that parent progress bar's lifetime will be greater than this span's progress bar.
     // * The ProgressBar is just a wrapper around `Arc`, so cloning and tracking it here is fine.
     parent_progress_bar: Option<ProgressBar>,
+    // This is only `Some` if we have some parent with a progress bar.
+    parent_span: Option<span::Id>,
+    // Fields to be passed to the progress bar as keys.
     span_fields_formatted: Option<String>,
+    span_name: String,
+    span_child_prefix: String,
     // Used to quickly compute a child span's prefix without having to traverse up the entire span
     // scope.
     level: u16,
+}
+
+impl IndicatifSpanContext {
+    fn add_keys_to_style(&self, style: ProgressStyle) -> ProgressStyle {
+        style
+            .with_key(
+                "span_name",
+                IndicatifProgressKey {
+                    message: self.span_name.clone(),
+                },
+            )
+            .with_key(
+                "span_fields",
+                IndicatifProgressKey {
+                    message: self.span_fields_formatted.to_owned().unwrap_or_default(),
+                },
+            )
+            .with_key(
+                "span_child_prefix",
+                IndicatifProgressKey {
+                    message: self.span_child_prefix.clone(),
+                },
+            )
+    }
 }
 
 /// The layer that handles creating and managing indicatif progress bars for active spans. This
@@ -89,18 +164,22 @@ struct IndicatifSpanContext {
 /// Progress bars will be started the very first time a span is [entered](tracing::Span::enter) and
 /// will finish when the span is [closed](tracing_subscriber::Layer::on_close).
 ///
-/// Under the hood, this just uses indicatif's [MultiProgress] struct to manage individual
-/// [ProgressBar] instances per span.
+/// Under the hood, this just uses indicatif's [indicatif::MultiProgress] struct to manage
+/// individual [indicatif::ProgressBar] instances per span.
 pub struct IndicatifLayer<S, F = DefaultFields> {
     pb_manager: Mutex<ProgressBarManager>,
     span_field_formatter: F,
     progress_style: ProgressStyle,
     span_child_prefix_indent: &'static str,
     span_child_prefix_symbol: &'static str,
+    get_context: WithContext,
     inner: PhantomData<S>,
 }
 
-impl<S> IndicatifLayer<S> {
+impl<S> IndicatifLayer<S>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
     /// Spawns a progress bar for every tracing span that is received by this layer.
     ///
     /// The default settings for this layer are 7 progress bars maximum and progress bars in the
@@ -120,7 +199,10 @@ impl<S> IndicatifLayer<S> {
     }
 }
 
-impl<S> Default for IndicatifLayer<S> {
+impl<S> Default for IndicatifLayer<S>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+{
     fn default() -> Self {
         Self {
             pb_manager: Mutex::new(ProgressBarManager::new(
@@ -139,6 +221,7 @@ impl<S> Default for IndicatifLayer<S> {
             .unwrap(),
             span_child_prefix_indent: "  ",
             span_child_prefix_symbol: "↳ ",
+            get_context: WithContext(Self::get_context),
             inner: PhantomData,
         }
     }
@@ -191,6 +274,7 @@ impl<S, F> IndicatifLayer<S, F> {
             progress_style: self.progress_style,
             span_child_prefix_indent: self.span_child_prefix_indent,
             span_child_prefix_symbol: self.span_child_prefix_symbol,
+            get_context: self.get_context,
             inner: self.inner,
         }
     }
@@ -245,6 +329,33 @@ impl<S, F> IndicatifLayer<S, F> {
     }
 }
 
+impl<S, F> IndicatifLayer<S, F>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    F: for<'writer> FormatFields<'writer> + 'static,
+{
+    fn get_context(
+        dispatch: &tracing::Dispatch,
+        id: &span::Id,
+        f: &mut dyn FnMut(&mut IndicatifSpanContext),
+    ) {
+        // The only way `get_context` can be called is if we have an `IndicatifLayer` added to the
+        // expected subscriber, hence why we can `.expect` here.
+        let subscriber = dispatch
+            .downcast_ref::<S>()
+            .expect("subscriber should downcast to expected type; this is a bug!");
+        let span = subscriber
+            .span(id)
+            .expect("Span not found in context, this is a bug");
+
+        let mut ext = span.extensions_mut();
+
+        if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
+            f(indicatif_ctx);
+        }
+    }
+}
+
 impl<S, F> layer::Layer<S> for IndicatifLayer<S, F>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
@@ -261,11 +372,45 @@ where
             .span_field_formatter
             .format_fields(fields.as_writer(), attrs);
 
+        // Get the next parent span with a progress bar.
+        let parent_span = ctx.span_scope(id).and_then(|scope| {
+            scope.skip(1).find(|span| {
+                let ext = span.extensions();
+
+                ext.get::<IndicatifSpanContext>().is_some()
+            })
+        });
+        let parent_span_id = parent_span.as_ref().map(|span| span.id());
+        let parent_span_ext = parent_span.as_ref().map(|span| span.extensions());
+        let parent_indicatif_ctx = parent_span_ext
+            .as_ref()
+            .map(|ext| ext.get::<IndicatifSpanContext>().unwrap());
+
+        let (span_child_prefix, level) = match parent_indicatif_ctx {
+            Some(v) => {
+                let level = v.level + 1;
+
+                (
+                    format!(
+                        "{}{}",
+                        self.span_child_prefix_indent.repeat(level.into()),
+                        self.span_child_prefix_symbol
+                    ),
+                    level,
+                )
+            }
+            None => (String::new(), 0),
+        };
+
         ext.insert(IndicatifSpanContext {
             progress_bar: None,
+            init_progress_style: None,
             parent_progress_bar: None,
+            parent_span: parent_span_id,
             span_fields_formatted: Some(fields.fields),
-            level: 0,
+            span_name: span.name().to_string(),
+            span_child_prefix,
+            level,
         });
     }
 
@@ -276,62 +421,25 @@ where
         let mut ext = span.extensions_mut();
 
         if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
-            // Get the next parent span with a progress bar.
-            let parent_span = ctx.span_scope(id).and_then(|scope| {
-                scope.skip(1).find(|span| {
-                    let ext = span.extensions();
-
-                    ext.get::<IndicatifSpanContext>().is_some()
-                })
-            });
-            let parent_span_ext = parent_span.as_ref().map(|span| span.extensions());
-            let parent_indicatif_ctx = parent_span_ext
-                .as_ref()
-                .map(|ext| ext.get::<IndicatifSpanContext>().unwrap());
-
-            let span_name = span.name().to_string();
-            let span_fields_formatted = indicatif_ctx
-                .span_fields_formatted
-                .to_owned()
-                .unwrap_or_default();
-
             // Start the progress bar when we enter the span for the first time.
             if indicatif_ctx.progress_bar.is_none() {
-                let span_child_prefix = match parent_indicatif_ctx {
-                    Some(v) => {
-                        indicatif_ctx.level = v.level + 1;
+                indicatif_ctx.progress_bar = Some(ProgressBar::hidden().with_style(
+                    indicatif_ctx.init_progress_style.take().unwrap_or_else(|| {
+                        indicatif_ctx.add_keys_to_style(self.progress_style.clone())
+                    }),
+                ));
 
-                        format!(
-                            "{}{}",
-                            self.span_child_prefix_indent
-                                .repeat(indicatif_ctx.level.into()),
-                            self.span_child_prefix_symbol
-                        )
-                    }
-                    None => String::new(),
-                };
+                if let Some(ref parent_span_with_pb) = indicatif_ctx.parent_span {
+                    let parent_span = ctx
+                        .span(parent_span_with_pb)
+                        .expect("Parent span not found in context, this is a bug");
+                    let parent_span_ext = parent_span.extensions();
+                    let parent_indicatif_ctx = parent_span_ext
+                        .get::<IndicatifSpanContext>()
+                        .expect(
+                        "IndicatifSpanContext not found in parent span extensions, this is a bug",
+                    );
 
-                indicatif_ctx.progress_bar = Some(
-                    ProgressBar::hidden().with_style(
-                        self.progress_style
-                            .clone()
-                            .with_key("span_name", IndicatifProgressKey { message: span_name })
-                            .with_key(
-                                "span_fields",
-                                IndicatifProgressKey {
-                                    message: span_fields_formatted,
-                                },
-                            )
-                            .with_key(
-                                "span_child_prefix",
-                                IndicatifProgressKey {
-                                    message: span_child_prefix,
-                                },
-                            ),
-                    ),
-                );
-
-                if let Some(parent_indicatif_ctx) = parent_indicatif_ctx {
                     // Parent spans should always have been entered at least once, meaning if
                     // they have an `IndicatifSpanContext`, they have a progress bar. So we can
                     // unwrap safely here.
@@ -363,4 +471,20 @@ where
                 .finish_progress_bar(indicatif_ctx, &ctx);
         }
     }
+
+    // See comments on [WithContext] for why we have this.
+    //
+    // SAFETY: this is safe because the `WithContext` function pointer is valid
+    // for the lifetime of `&self`.
+    unsafe fn downcast_raw(&self, id: TypeId) -> Option<*const ()> {
+        match id {
+            id if id == TypeId::of::<Self>() => Some(self as *const _ as *const ()),
+            id if id == TypeId::of::<WithContext>() => {
+                Some(&self.get_context as *const _ as *const ())
+            }
+            _ => None,
+        }
+    }
 }
+
+// TODO(emersonford): add unit tests to ensure no panic behaviors
