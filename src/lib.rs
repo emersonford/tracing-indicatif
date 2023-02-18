@@ -290,13 +290,16 @@ impl ProgressBarManager {
 /// The layer that handles creating and managing indicatif progress bars for active spans. This
 /// layer must be registered with your tracing subscriber to have any effect.
 ///
-/// Under the hood, this just uses indicatif's [MultiProgress] struct to manage individual
-/// [ProgressBar] instances per span.
-///
 /// This layer performs no filtering on which spans to show progress bars for. It is expected one
 /// attaches [filters to this
 /// layer](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/index.html#filtering-with-layers)
 /// to control which spans actually have progress bars generated for them.
+///
+/// Progress bars will be started the very first time a span is [entered](tracing::Span::enter) and
+/// will finish when the span is [closed](tracing_subscriber::Layer::on_close).
+///
+/// Under the hood, this just uses indicatif's [MultiProgress] struct to manage individual
+/// [ProgressBar] instances per span.
 pub struct IndicatifLayer<S, F = DefaultFields> {
     pb_manager: Mutex<ProgressBarManager>,
     span_field_formatter: F,
