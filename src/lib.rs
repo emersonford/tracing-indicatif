@@ -212,6 +212,7 @@ where
                 ),
             )),
             span_field_formatter: DefaultFields::new(),
+            // TODO(emersonford): migrate this to indicatif's native prefix key
             progress_style: ProgressStyle::with_template(
                 "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
             )
@@ -485,3 +486,4 @@ where
 }
 
 // TODO(emersonford): add unit tests to ensure no panic behaviors
+// TODO(emersonford): add unit tests using indicatif's in-memory term

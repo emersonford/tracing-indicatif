@@ -6,6 +6,7 @@ use crate::IndicatifSpanContext;
 use crate::WithContext;
 
 // TODO(emersonford): add more progress bar mutation methods
+// TODO(emersonford): expose stderr/stdout writers in span ext
 
 fn apply_to_indicatif_span(span: &Span, f: impl FnMut(&mut IndicatifSpanContext)) {
     span.with_subscriber(|(id, subscriber)| {
