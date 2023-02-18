@@ -31,7 +31,7 @@ use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 
 mod pb_manager;
-mod writer;
+pub mod writer;
 
 use pb_manager::ProgressBarManager;
 pub use writer::IndicatifWriter;
