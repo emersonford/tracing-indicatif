@@ -5,7 +5,6 @@ use tracing::Span;
 use crate::IndicatifSpanContext;
 use crate::WithContext;
 
-// TODO(emersonford): add more progress bar mutation methods
 // TODO(emersonford): expose stderr/stdout writers in span ext
 
 fn apply_to_indicatif_span(span: &Span, f: impl FnMut(&mut IndicatifSpanContext)) {
@@ -46,28 +45,34 @@ pub trait IndicatifSpanExt {
 
     /// Sets the length of the progress bar for this span. See
     /// [set_length](indicatif::ProgressBar::set_length).
-    ///
-    /// Has no effect if the span has not been entered at least once.
     fn pb_set_length(&self, len: u64);
 
     /// Sets the position of the progress bar for this span. See
     /// [set_position](indicatif::ProgressBar::set_position).
+    fn pb_set_position(&self, pos: u64);
+
+    /// Increments the position of the progress bar for this span. See
+    /// [inc](indicatif::ProgressBar::inc).
     ///
     /// Has no effect if the span has not been entered at least once.
-    fn pb_set_position(&self, pos: u64);
+    fn pb_inc(&self, delta: u64);
+
+    /// Increments the length of the progress bar for this span. See
+    /// [inc_length](indicatif::ProgressBar::inc_length).
+    ///
+    /// Has no effect if the span has not been entered at least once.
+    fn pb_inc_length(&self, delta: u64);
+
+    /// Sets the message of the progress bar for this span. See
+    /// [set_message](indicatif::ProgressBar::set_message).
+    fn pb_set_message(&self, msg: &str);
 }
 
 impl IndicatifSpanExt for Span {
     fn pb_set_style(&self, style: &ProgressStyle) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
             // Cloning the `ProgressStyle` is necessary to make this `FnMut` :(
-            if let Some(ref pb) = indicatif_ctx.progress_bar {
-                // We have a visible progress bar, so update in place.
-                pb.set_style(indicatif_ctx.add_keys_to_style(style.clone()));
-            } else {
-                indicatif_ctx.init_progress_style =
-                    Some(indicatif_ctx.add_keys_to_style(style.clone()));
-            }
+            indicatif_ctx.set_progress_bar_style(style.clone());
         });
     }
 
@@ -77,17 +82,35 @@ impl IndicatifSpanExt for Span {
 
     fn pb_set_length(&self, len: u64) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
-            if let Some(ref pb) = indicatif_ctx.progress_bar {
-                pb.set_length(len);
-            }
+            indicatif_ctx.set_progress_bar_length(len);
         });
     }
 
     fn pb_set_position(&self, pos: u64) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.set_progress_bar_position(pos);
+        });
+    }
+
+    fn pb_inc(&self, delta: u64) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
             if let Some(ref pb) = indicatif_ctx.progress_bar {
-                pb.set_position(pos);
+                pb.inc(delta);
             }
+        });
+    }
+
+    fn pb_inc_length(&self, delta: u64) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            if let Some(ref pb) = indicatif_ctx.progress_bar {
+                pb.inc_length(delta);
+            }
+        });
+    }
+
+    fn pb_set_message(&self, msg: &str) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.set_progress_bar_message(msg.to_string());
         });
     }
 }

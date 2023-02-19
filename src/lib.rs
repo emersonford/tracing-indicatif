@@ -102,6 +102,14 @@ impl WithContext {
     }
 }
 
+#[derive(Default)]
+struct ProgressBarInitSettings {
+    style: Option<ProgressStyle>,
+    len: Option<u64>,
+    pos: Option<u64>,
+    message: Option<String>,
+}
+
 struct IndicatifSpanContext {
     // If this progress bar is `Some(pb)` and `pb.is_hidden`, it means the progress bar is queued.
     // We start the progress bar in hidden mode so things like `elapsed` are accurate.
@@ -109,7 +117,7 @@ struct IndicatifSpanContext {
     // If this progress bar is `None`, it means the span has not yet been entered.
     progress_bar: Option<ProgressBar>,
     // If `Some`, the progress bar will use this style when the span is entered for the first time.
-    init_progress_style: Option<ProgressStyle>,
+    pb_init_settings: ProgressBarInitSettings,
     // Notes:
     // * A parent span cannot close before its child spans, so if a parent span has a progress bar,
     //   that parent progress bar's lifetime will be greater than this span's progress bar.
@@ -148,6 +156,63 @@ impl IndicatifSpanContext {
                 },
             )
     }
+
+    fn make_progress_bar(&mut self, default_style: &ProgressStyle) {
+        if self.progress_bar.is_none() {
+            let pb = ProgressBar::hidden().with_style(
+                self.pb_init_settings
+                    .style
+                    .take()
+                    .unwrap_or_else(|| self.add_keys_to_style(default_style.clone())),
+            );
+
+            if let Some(len) = self.pb_init_settings.len.take() {
+                pb.set_length(len);
+            }
+
+            if let Some(msg) = self.pb_init_settings.message.take() {
+                pb.set_message(msg);
+            }
+
+            if let Some(pos) = self.pb_init_settings.pos.take() {
+                pb.set_position(pos);
+            }
+
+            self.progress_bar = Some(pb);
+        }
+    }
+
+    fn set_progress_bar_style(&mut self, style: ProgressStyle) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.set_style(self.add_keys_to_style(style));
+        } else {
+            self.pb_init_settings.style = Some(self.add_keys_to_style(style));
+        }
+    }
+
+    fn set_progress_bar_length(&mut self, len: u64) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.set_length(len);
+        } else {
+            self.pb_init_settings.len = Some(len);
+        }
+    }
+
+    fn set_progress_bar_position(&mut self, pos: u64) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.set_position(pos);
+        } else {
+            self.pb_init_settings.pos = Some(pos);
+        }
+    }
+
+    fn set_progress_bar_message(&mut self, msg: String) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.set_message(msg);
+        } else {
+            self.pb_init_settings.message = Some(msg);
+        }
+    }
 }
 
 /// The layer that handles creating and managing indicatif progress bars for active spans. This
@@ -158,8 +223,11 @@ impl IndicatifSpanContext {
 /// layer](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/index.html#filtering-with-layers)
 /// to control which spans actually have progress bars generated for them.
 ///
-/// Progress bars will be started the very first time a span is [entered](tracing::Span::enter) and
-/// will finish when the span is [closed](tracing_subscriber::Layer::on_close).
+/// Progress bars will be started the very first time a span is [entered](tracing::Span::enter)
+/// or when one of its child spans is entered for the first time, and will finish when the span
+/// is [closed](tracing_subscriber::Layer::on_close) (including all child spans having closed).
+///
+/// Progress bars are emitted to stderr.
 ///
 /// Under the hood, this just uses indicatif's [MultiProgress](indicatif::MultiProgress) struct to
 /// manage individual [ProgressBar](indicatif::ProgressBar) instances per span.
@@ -212,7 +280,6 @@ where
                 ),
             )),
             span_field_formatter: DefaultFields::new(),
-            // TODO(emersonford): migrate this to indicatif's native prefix key
             progress_style: ProgressStyle::with_template(
                 "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
             )
@@ -402,7 +469,7 @@ where
 
         ext.insert(IndicatifSpanContext {
             progress_bar: None,
-            init_progress_style: None,
+            pb_init_settings: ProgressBarInitSettings::default(),
             parent_progress_bar: None,
             parent_span: parent_span_id,
             span_fields_formatted: Some(fields.fields),
@@ -421,28 +488,31 @@ where
         if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
             // Start the progress bar when we enter the span for the first time.
             if indicatif_ctx.progress_bar.is_none() {
-                indicatif_ctx.progress_bar = Some(ProgressBar::hidden().with_style(
-                    indicatif_ctx.init_progress_style.take().unwrap_or_else(|| {
-                        indicatif_ctx.add_keys_to_style(self.progress_style.clone())
-                    }),
-                ));
+                indicatif_ctx.make_progress_bar(&self.progress_style);
 
                 if let Some(ref parent_span_with_pb) = indicatif_ctx.parent_span {
                     let parent_span = ctx
                         .span(parent_span_with_pb)
                         .expect("Parent span not found in context, this is a bug");
-                    let parent_span_ext = parent_span.extensions();
+                    let mut parent_span_ext = parent_span.extensions_mut();
                     let parent_indicatif_ctx = parent_span_ext
-                        .get::<IndicatifSpanContext>()
+                        .get_mut::<IndicatifSpanContext>()
                         .expect(
                         "IndicatifSpanContext not found in parent span extensions, this is a bug",
                     );
 
-                    // Parent spans should always have been entered at least once, meaning if
-                    // they have an `IndicatifSpanContext`, they have a progress bar. So we can
-                    // unwrap safely here.
-                    //
-                    // TODO(emersonford): is this actually true? :o
+                    // If the parent span has not been entered once, start the parent progress bar
+                    // for it.
+                    if parent_indicatif_ctx.progress_bar.is_none() {
+                        parent_indicatif_ctx.make_progress_bar(&self.progress_style);
+
+                        self.pb_manager
+                            .lock()
+                            .unwrap()
+                            .show_progress_bar(parent_indicatif_ctx, id);
+                    }
+
+                    // We can safely unwrap here now since we know a parent progress bar exists.
                     indicatif_ctx.parent_progress_bar =
                         Some(parent_indicatif_ctx.progress_bar.to_owned().unwrap());
                 }
@@ -485,5 +555,5 @@ where
     }
 }
 
-// TODO(emersonford): add unit tests to ensure no panic behaviors
-// TODO(emersonford): add unit tests using indicatif's in-memory term
+#[cfg(test)]
+mod tests;
