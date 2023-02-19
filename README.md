@@ -42,5 +42,5 @@ A recreation of `buck2`'s [superconsole](https://github.com/facebookincubator/su
 
 ### Future Features
 These features are not yet available, but are a work in progress:
-* Support "bar" style / incrementable progress bars.
-* Allow setting progress bar style per span.
+* Support pinning specific progress bar fields (e.g. position) to span fields.
+* Update progress bars when a field is recorded to a span.
