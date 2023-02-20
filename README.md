@@ -29,6 +29,9 @@ folder for demo code.
 ### Default Configuration with Child Spans
 ![demo using child_spans example](child_spans.gif)
 
+### Progress Bar
+![demo using progress_bar example](progress_bar.gif)
+
 ### Build Console Like
 A recreation of `buck2`'s [superconsole](https://github.com/facebookincubator/superconsole).
 ![demo using build_console example](build_console.gif)
