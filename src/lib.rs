@@ -213,6 +213,25 @@ impl IndicatifSpanContext {
             self.pb_init_settings.message = Some(msg);
         }
     }
+
+    fn inc_progress_bar_position(&mut self, pos: u64) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.inc(pos);
+        } else if let Some(ref mut pb_pos) = self.pb_init_settings.pos {
+            *pb_pos += pos;
+        } else {
+            // indicatif defaults position to 0, so copy that behavior.
+            self.pb_init_settings.pos = Some(pos);
+        }
+    }
+
+    fn inc_progress_bar_length(&mut self, len: u64) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.inc_length(len);
+        } else if let Some(ref mut pb_len) = self.pb_init_settings.len {
+            *pb_len += len;
+        }
+    }
 }
 
 /// The layer that handles creating and managing indicatif progress bars for active spans. This

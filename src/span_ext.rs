@@ -49,18 +49,22 @@ pub trait IndicatifSpanExt {
 
     /// Sets the position of the progress bar for this span. See
     /// [set_position](indicatif::ProgressBar::set_position).
+    ///
+    /// WARNING: you should call [pb_set_length] at least once before calling this method, or you
+    /// may see a buggy progress bar.
     fn pb_set_position(&self, pos: u64);
 
     /// Increments the position of the progress bar for this span. See
     /// [inc](indicatif::ProgressBar::inc).
     ///
-    /// Has no effect if the span has not been entered at least once.
+    /// WARNING: you should call [pb_set_length] at least once before calling this method, or you
+    /// may see a buggy progress bar.
     fn pb_inc(&self, delta: u64);
 
     /// Increments the length of the progress bar for this span. See
     /// [inc_length](indicatif::ProgressBar::inc_length).
     ///
-    /// Has no effect if the span has not been entered at least once.
+    /// Has no effect if [pb_set_length] has not been called at least once.
     fn pb_inc_length(&self, delta: u64);
 
     /// Sets the message of the progress bar for this span. See
@@ -92,19 +96,15 @@ impl IndicatifSpanExt for Span {
         });
     }
 
-    fn pb_inc(&self, delta: u64) {
+    fn pb_inc(&self, pos: u64) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
-            if let Some(ref pb) = indicatif_ctx.progress_bar {
-                pb.inc(delta);
-            }
+            indicatif_ctx.inc_progress_bar_position(pos);
         });
     }
 
     fn pb_inc_length(&self, delta: u64) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
-            if let Some(ref pb) = indicatif_ctx.progress_bar {
-                pb.inc_length(delta);
-            }
+            indicatif_ctx.inc_progress_bar_length(delta);
         });
     }
 

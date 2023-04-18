@@ -529,6 +529,95 @@ fn test_bar_style_progress_bar() {
 }
 
 #[test]
+fn test_bar_style_progress_bar_inc_before_start() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let span1 = info_span!("foo");
+        span1.pb_set_style(&ProgressStyle::default_bar());
+        span1.pb_set_length(10);
+        span1.pb_inc_length(1);
+        span1.pb_inc(2);
+        span1.pb_start();
+
+        thread::sleep(Duration::from_millis(10));
+        assert_eq!(
+            term.contents(),
+            r#"
+█████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 2/11
+            "#
+            .trim()
+        );
+
+        span1.pb_inc(1);
+
+        thread::sleep(Duration::from_millis(150));
+        assert_eq!(
+            term.contents(),
+            r#"
+█████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 3/11
+            "#
+            .trim()
+        );
+
+        span1.pb_inc_length(1);
+        span1.pb_inc(9);
+        thread::sleep(Duration::from_millis(150));
+        assert_eq!(
+            term.contents(),
+            r#"
+██████████████████████████████████████████████████████████████████████████████████████████████ 12/12
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
+fn test_bar_style_progress_bar_inc_without_set_length() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let span1 = info_span!("foo");
+        span1.pb_set_style(&ProgressStyle::default_bar());
+        span1.pb_inc_length(5);
+        span1.pb_inc(2);
+        span1.pb_start();
+
+        thread::sleep(Duration::from_millis(10));
+        assert_eq!(
+            term.contents(),
+            r#"
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 2/2
+            "#
+            .trim()
+        );
+
+        span1.pb_inc_length(5);
+        span1.pb_inc(1);
+
+        thread::sleep(Duration::from_millis(150));
+        assert_eq!(
+            term.contents(),
+            r#"
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 3/3
+            "#
+            .trim()
+        );
+
+        span1.pb_inc(8);
+        thread::sleep(Duration::from_millis(150));
+        assert_eq!(
+            term.contents(),
+            r#"
+░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 11/11
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
 fn test_span_ext_no_effect_when_layer_not_added() {
     let term = InMemoryTerm::new(10, 100);
 
