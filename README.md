@@ -42,8 +42,3 @@ A recreation of `buck2`'s [superconsole](https://github.com/facebookincubator/su
 * Supports displaying parent-child span relationship between progress bars.
 * Limit the number of progress bars visible on the terminal.
 * Prevents progress bars from clobbering tracing logs.
-
-### Future Features
-These features are not yet available, but are a work in progress:
-* Support pinning specific progress bar fields (e.g. position) to span fields.
-* Update progress bars when a field is recorded to a span.

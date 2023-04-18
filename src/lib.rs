@@ -42,9 +42,6 @@ pub mod writer;
 use pb_manager::ProgressBarManager;
 pub use writer::IndicatifWriter;
 
-// TODO(emersonford): add support for pinning a progress bar's progress to a specific span field
-// TODO(emersonford): update format field in span's `on_record`.
-
 #[derive(Clone)]
 struct IndicatifProgressKey {
     message: String,
