@@ -35,6 +35,7 @@ use tracing_subscriber::fmt::FormattedFields;
 use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 
+pub mod filter;
 mod pb_manager;
 pub mod span_ext;
 pub mod writer;
@@ -237,7 +238,8 @@ impl IndicatifSpanContext {
 /// This layer performs no filtering on which spans to show progress bars for. It is expected one
 /// attaches [filters to this
 /// layer](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/index.html#filtering-with-layers)
-/// to control which spans actually have progress bars generated for them.
+/// to control which spans actually have progress bars generated for them. See
+/// [filter::IndicatifFilter] for a rudimentary filter.
 ///
 /// Progress bars will be started the very first time a span is [entered](tracing::Span::enter)
 /// or when one of its child spans is entered for the first time, and will finish when the span
@@ -519,6 +521,11 @@ where
 
                     // If the parent span has not been entered once, start the parent progress bar
                     // for it.
+                    //
+                    // NOTE: there's a bug here. if the parent of the parent hasn't started their
+                    // PB, we don't start the parent of the parent's PB. It'd be pretty bad to have
+                    // to iterate up the whole span scope to fix this, so I'm hoping this is a non
+                    // issue for the most part. :(
                     if parent_indicatif_ctx.progress_bar.is_none() {
                         parent_indicatif_ctx.make_progress_bar(&self.progress_style);
 
