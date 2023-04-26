@@ -1,9 +1,36 @@
 //! Provides a rudimentary filter layer that can be used to selectively enable progress bars on a
 //! per-span level.
+//!
+//! # Example Use
+//!
+//! ```
+//! use tracing_subscriber::layer::SubscriberExt;
+//! use tracing_subscriber::util::SubscriberInitExt;
+//! use tracing_indicatif::IndicatifLayer;
+//! use tracing_indicatif::filter::IndicatifFilter;
+//! use tracing_indicatif::filter::hide_indicatif_span_fields;
+//! use tracing_subscriber::fmt::format::DefaultFields;
+//! use tracing_subscriber::layer::Layer;
+//!
+//! let indicatif_layer = IndicatifLayer::new()
+//!     .with_span_field_formatter(hide_indicatif_span_fields(DefaultFields::new()));
+//!
+//! tracing_subscriber::registry()
+//!     .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_stderr_writer()))
+//!     .with(indicatif_layer.with_filter(IndicatifFilter::new(false)))
+//!     .init();
+//! ```
+use std::fmt;
 use std::marker::PhantomData;
 
-use tracing_core::Subscriber;
+use tracing_core::{Field, Subscriber};
 use tracing_subscriber::layer::Filter;
+use tracing_subscriber::{
+    field::{MakeVisitor, VisitFmt, VisitOutput},
+    fmt::format::Writer,
+};
+
+use crate::util::FilteredFormatFields;
 
 /// A filter that filters based on the presence of a field with the name of either
 /// "indicatif.pb_show" or "indicatif.pb_hide" on the span.
@@ -53,4 +80,17 @@ impl<S: Subscriber> Filter<S> for IndicatifFilter<S> {
 
         self.show_progress_bars_by_default
     }
+}
+
+/// Returns a [FormatFields] that ignores the "indicatif.pb_show" and "indicatif.pb_hide" fields.
+pub fn hide_indicatif_span_fields<'writer, Format>(
+    format: Format,
+) -> FilteredFormatFields<Format, impl Fn(&Field) -> bool + Clone>
+where
+    Format: MakeVisitor<Writer<'writer>>,
+    Format::Visitor: VisitFmt + VisitOutput<fmt::Result>,
+{
+    FilteredFormatFields::new(format, |field: &Field| {
+        field.name() != "indicatif.pb_show" && field.name() != "indicatif.pb_hide"
+    })
 }

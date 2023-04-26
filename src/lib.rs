@@ -38,6 +38,7 @@ use tracing_subscriber::registry::LookupSpan;
 pub mod filter;
 mod pb_manager;
 pub mod span_ext;
+pub mod util;
 pub mod writer;
 
 use pb_manager::ProgressBarManager;

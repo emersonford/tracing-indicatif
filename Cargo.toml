@@ -39,3 +39,6 @@ name = "per_span_style"
 
 [[example]]
 name = "progress_bar"
+
+[[example]]
+name = "filter"
