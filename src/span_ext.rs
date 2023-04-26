@@ -50,21 +50,21 @@ pub trait IndicatifSpanExt {
     /// Sets the position of the progress bar for this span. See
     /// [set_position](indicatif::ProgressBar::set_position).
     ///
-    /// WARNING: you should call [pb_set_length] at least once before calling this method, or you
+    /// WARNING: you should call [Self::pb_set_length] at least once before calling this method, or you
     /// may see a buggy progress bar.
     fn pb_set_position(&self, pos: u64);
 
     /// Increments the position of the progress bar for this span. See
     /// [inc](indicatif::ProgressBar::inc).
     ///
-    /// WARNING: you should call [pb_set_length] at least once before calling this method, or you
+    /// WARNING: you should call [Self::pb_set_length] at least once before calling this method, or you
     /// may see a buggy progress bar.
     fn pb_inc(&self, delta: u64);
 
     /// Increments the length of the progress bar for this span. See
     /// [inc_length](indicatif::ProgressBar::inc_length).
     ///
-    /// Has no effect if [pb_set_length] has not been called at least once.
+    /// Has no effect if [Self::pb_set_length] has not been called at least once.
     fn pb_inc_length(&self, delta: u64);
 
     /// Sets the message of the progress bar for this span. See
