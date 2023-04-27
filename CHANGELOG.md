@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.3.2 - 2023-04-26
+* fixed a race condition that could trigger a deadlock on span close (#2, thanks @Kyuuhachi!)
+
 ## 0.3.1 - 2023-04-25
 * `inc` is now allowed to be called before `pb_start`
 * added a rudimentary filter layer that allows specifying whether to show a pb or not on a per-span level
