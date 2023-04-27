@@ -550,6 +550,12 @@ where
     }
 
     fn on_close(&self, id: span::Id, ctx: layer::Context<'_, S>) {
+        // A little inefficient for spans that do not have a progress bar, but we need to do this
+        // to avoid a race condition. If we call `.extensions_mut()` first here, then
+        // `self.pb_manager.lock()`, we will race with `self.pb_manager`'s "show next eligible
+        // span" logic.
+        let mut pb_manager_lock = self.pb_manager.lock().unwrap();
+
         let span = ctx
             .span(&id)
             .expect("Span not found in context, this is a bug");
@@ -557,10 +563,7 @@ where
 
         // Clear the progress bar only when the span has closed completely.
         if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
-            self.pb_manager
-                .lock()
-                .unwrap()
-                .finish_progress_bar(indicatif_ctx, &ctx);
+            pb_manager_lock.finish_progress_bar(indicatif_ctx, &ctx);
         }
     }
 

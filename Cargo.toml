@@ -42,3 +42,6 @@ name = "progress_bar"
 
 [[example]]
 name = "filter"
+
+[[example]]
+name = "multithread"
