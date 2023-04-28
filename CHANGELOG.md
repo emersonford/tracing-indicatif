@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.3.3 - 2023-04-27
+* fix a very suble race condition that could trigger a panic (#3, thanks again @Kyuuhachi!)
+
 ## 0.3.2 - 2023-04-26
 * fixed a race condition that could trigger a deadlock on span close (#2, thanks @Kyuuhachi!)
 
