@@ -499,6 +499,8 @@ where
     }
 
     fn on_enter(&self, id: &span::Id, ctx: layer::Context<'_, S>) {
+        let mut pb_manager_lock = self.pb_manager.lock().unwrap();
+
         let span = ctx
             .span(id)
             .expect("Span not found in context, this is a bug");
@@ -521,7 +523,8 @@ where
                     );
 
                     // If the parent span has not been entered once, start the parent progress bar
-                    // for it.
+                    // for it. We are guaranteed that the parent span has not yet closed because a
+                    // child span for the parent is still open.
                     //
                     // NOTE: there's a bug here. if the parent of the parent hasn't started their
                     // PB, we don't start the parent of the parent's PB. It'd be pretty bad to have
@@ -530,10 +533,7 @@ where
                     if parent_indicatif_ctx.progress_bar.is_none() {
                         parent_indicatif_ctx.make_progress_bar(&self.progress_style);
 
-                        self.pb_manager
-                            .lock()
-                            .unwrap()
-                            .show_progress_bar(parent_indicatif_ctx, id);
+                        pb_manager_lock.show_progress_bar(parent_indicatif_ctx, id);
                     }
 
                     // We can safely unwrap here now since we know a parent progress bar exists.
@@ -541,19 +541,12 @@ where
                         Some(parent_indicatif_ctx.progress_bar.to_owned().unwrap());
                 }
 
-                self.pb_manager
-                    .lock()
-                    .unwrap()
-                    .show_progress_bar(indicatif_ctx, id);
+                pb_manager_lock.show_progress_bar(indicatif_ctx, id);
             }
         }
     }
 
     fn on_close(&self, id: span::Id, ctx: layer::Context<'_, S>) {
-        // A little inefficient for spans that do not have a progress bar, but we need to do this
-        // to avoid a race condition. If we call `.extensions_mut()` first here, then
-        // `self.pb_manager.lock()`, we will race with `self.pb_manager`'s "show next eligible
-        // span" logic.
         let mut pb_manager_lock = self.pb_manager.lock().unwrap();
 
         let span = ctx

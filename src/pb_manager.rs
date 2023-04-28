@@ -12,7 +12,6 @@ use tracing_core::span;
 use tracing_core::Subscriber;
 use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
-use tracing_subscriber::registry::SpanRef;
 
 use crate::IndicatifSpanContext;
 
@@ -81,10 +80,10 @@ impl ProgressBarManager {
             );
 
             if let Some(footer_pb) = self.footer_pb.as_ref() {
+                self.mp.set_move_cursor(false);
                 footer_pb.finish_and_clear();
                 self.mp.remove(footer_pb);
                 footer_pb.disable_steady_tick();
-                self.mp.set_move_cursor(false);
             }
         }
     }
@@ -174,32 +173,36 @@ impl ProgressBarManager {
         self.mp.remove(&pb);
         self.active_progress_bars -= 1;
 
-        let maybe_next_eligible_span: Option<(span::Id, SpanRef<S>)> = loop {
+        loop {
             let Some(span_id) = self.pending_spans.pop_front() else {
-                break None;
+                break;
             };
 
             match ctx.span(&span_id) {
-                Some(v) => {
-                    break Some((span_id, v));
+                Some(next_eligible_span) => {
+                    let mut ext = next_eligible_span.extensions_mut();
+                    let indicatif_span_ctx = ext
+                        .get_mut::<IndicatifSpanContext>()
+                        .expect("No IndicatifSpanContext found; this is a bug");
+
+                    // It possible `on_close` has been called on a span but it has not yet been
+                    // removed from `ctx.span` (e.g., tracing may still be iterating through each
+                    // layer's `on_close` method and cannot remove the span from the registry until
+                    // it has finished `on_close` for each layer). So we may successfully fetch the
+                    // span, despite having closed out its progress bar.
+                    if indicatif_span_ctx.progress_bar.is_none() {
+                        continue;
+                    }
+
+                    self.decrement_pending_pb();
+                    self.show_progress_bar(indicatif_span_ctx, &span_id);
+                    break;
                 }
                 None => {
                     // Span was closed earlier, we "garbage collect" it from the queue here.
                     continue;
                 }
             }
-        };
-
-        let Some((span_id, next_eligible_span)) = maybe_next_eligible_span else {
-            return;
-        };
-
-        let mut ext = next_eligible_span.extensions_mut();
-        let indicatif_span_ctx = ext
-            .get_mut::<IndicatifSpanContext>()
-            .expect("No IndicatifSpanContext found; this is a bug");
-
-        self.decrement_pending_pb();
-        self.show_progress_bar(indicatif_span_ctx, &span_id);
+        }
     }
 }
