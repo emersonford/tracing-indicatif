@@ -26,6 +26,7 @@ use std::sync::Mutex;
 
 use indicatif::style::ProgressStyle;
 use indicatif::style::ProgressTracker;
+use indicatif::MultiProgress;
 use indicatif::ProgressBar;
 use tracing_core::span;
 use tracing_core::Subscriber;
@@ -90,6 +91,16 @@ pub(crate) struct WithContext(
     fn(&tracing::Dispatch, &span::Id, f: &mut dyn FnMut(&mut IndicatifSpanContext)),
 );
 
+#[allow(clippy::type_complexity)]
+pub(crate) struct WithStderrWriter(
+    fn(&tracing::Dispatch, f: &mut dyn FnMut(IndicatifWriter<writer::Stderr>)),
+);
+
+#[allow(clippy::type_complexity)]
+pub(crate) struct WithStdoutWriter(
+    fn(&tracing::Dispatch, f: &mut dyn FnMut(IndicatifWriter<writer::Stdout>)),
+);
+
 impl WithContext {
     pub(crate) fn with_context(
         &self,
@@ -98,6 +109,26 @@ impl WithContext {
         mut f: impl FnMut(&mut IndicatifSpanContext),
     ) {
         (self.0)(dispatch, id, &mut f)
+    }
+}
+
+impl WithStderrWriter {
+    pub(crate) fn with_context(
+        &self,
+        dispatch: &tracing::Dispatch,
+        mut f: impl FnMut(IndicatifWriter<writer::Stderr>),
+    ) {
+        (self.0)(dispatch, &mut f)
+    }
+}
+
+impl WithStdoutWriter {
+    pub(crate) fn with_context(
+        &self,
+        dispatch: &tracing::Dispatch,
+        mut f: impl FnMut(IndicatifWriter<writer::Stdout>),
+    ) {
+        (self.0)(dispatch, &mut f)
     }
 }
 
@@ -252,11 +283,16 @@ impl IndicatifSpanContext {
 /// manage individual [ProgressBar](indicatif::ProgressBar) instances per span.
 pub struct IndicatifLayer<S, F = DefaultFields> {
     pb_manager: Mutex<ProgressBarManager>,
+    // Allows us to fetch the `MultiProgress` without taking a lock.
+    // Do not mutate `mp` directly, always go through `pb_manager`.
+    mp: MultiProgress,
     span_field_formatter: F,
     progress_style: ProgressStyle,
     span_child_prefix_indent: &'static str,
     span_child_prefix_symbol: &'static str,
     get_context: WithContext,
+    get_stderr_writer_context: WithStderrWriter,
+    get_stdout_writer_context: WithStdoutWriter,
     inner: PhantomData<S>,
 }
 
@@ -288,16 +324,20 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn default() -> Self {
+        let pb_manager = ProgressBarManager::new(
+            7,
+            Some(
+                ProgressStyle::with_template(
+                    "...and {pending_progress_bars} more not shown above.",
+                )
+                .unwrap(),
+            ),
+        );
+        let mp = pb_manager.mp.clone();
+
         Self {
-            pb_manager: Mutex::new(ProgressBarManager::new(
-                7,
-                Some(
-                    ProgressStyle::with_template(
-                        "...and {pending_progress_bars} more not shown above.",
-                    )
-                    .unwrap(),
-                ),
-            )),
+            pb_manager: Mutex::new(pb_manager),
+            mp,
             span_field_formatter: DefaultFields::new(),
             progress_style: ProgressStyle::with_template(
                 "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
@@ -306,6 +346,8 @@ where
             span_child_prefix_indent: "  ",
             span_child_prefix_symbol: "↳ ",
             get_context: WithContext(Self::get_context),
+            get_stderr_writer_context: WithStderrWriter(Self::get_stderr_writer_context),
+            get_stdout_writer_context: WithStdoutWriter(Self::get_stdout_writer_context),
             inner: PhantomData,
         }
     }
@@ -328,7 +370,7 @@ impl<S, F> IndicatifLayer<S, F> {
     /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
     pub fn get_stderr_writer(&self) -> IndicatifWriter<writer::Stderr> {
         // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
-        IndicatifWriter::new(self.pb_manager.lock().unwrap().mp.clone())
+        IndicatifWriter::new(self.mp.clone())
     }
 
     /// Returns the a writer for [std::io::Stdout] that ensures its output will not be clobbered by
@@ -341,7 +383,7 @@ impl<S, F> IndicatifLayer<S, F> {
     /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
     pub fn get_stdout_writer(&self) -> IndicatifWriter<writer::Stdout> {
         // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
-        IndicatifWriter::new(self.pb_manager.lock().unwrap().mp.clone())
+        IndicatifWriter::new(self.mp.clone())
     }
 
     /// Set the formatter for span fields, the result of which will be available as the
@@ -354,11 +396,14 @@ impl<S, F> IndicatifLayer<S, F> {
     {
         IndicatifLayer {
             pb_manager: self.pb_manager,
+            mp: self.mp,
             span_field_formatter: formatter,
             progress_style: self.progress_style,
             span_child_prefix_indent: self.span_child_prefix_indent,
             span_child_prefix_symbol: self.span_child_prefix_symbol,
             get_context: self.get_context,
+            get_stderr_writer_context: self.get_stderr_writer_context,
+            get_stdout_writer_context: self.get_stdout_writer_context,
             inner: self.inner,
         }
     }
@@ -408,7 +453,14 @@ impl<S, F> IndicatifLayer<S, F> {
         max_progress_bars: u64,
         footer_style: Option<ProgressStyle>,
     ) -> Self {
-        self.pb_manager = Mutex::new(ProgressBarManager::new(max_progress_bars, footer_style));
+        // TODO(emersonford): refactor this so we don't need to create a new pb_manager and can
+        // just edit the existing one in place.
+        let pb_manager = ProgressBarManager::new(max_progress_bars, footer_style);
+        let mp = pb_manager.mp.clone();
+
+        self.pb_manager = Mutex::new(pb_manager);
+        self.mp = mp;
+
         self
     }
 }
@@ -437,6 +489,28 @@ where
         if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
             f(indicatif_ctx);
         }
+    }
+
+    fn get_stderr_writer_context(
+        dispatch: &tracing::Dispatch,
+        f: &mut dyn FnMut(IndicatifWriter<writer::Stderr>),
+    ) {
+        let layer = dispatch
+            .downcast_ref::<IndicatifLayer<S, F>>()
+            .expect("subscriber should downcast to expected type; this is a bug!");
+
+        f(layer.get_stderr_writer())
+    }
+
+    fn get_stdout_writer_context(
+        dispatch: &tracing::Dispatch,
+        f: &mut dyn FnMut(IndicatifWriter<writer::Stdout>),
+    ) {
+        let layer = dispatch
+            .downcast_ref::<IndicatifLayer<S, F>>()
+            .expect("subscriber should downcast to expected type; this is a bug!");
+
+        f(layer.get_stdout_writer())
     }
 }
 
@@ -569,6 +643,12 @@ where
             id if id == TypeId::of::<Self>() => Some(self as *const _ as *const ()),
             id if id == TypeId::of::<WithContext>() => {
                 Some(&self.get_context as *const _ as *const ())
+            }
+            id if id == TypeId::of::<WithStderrWriter>() => {
+                Some(&self.get_stderr_writer_context as *const _ as *const ())
+            }
+            id if id == TypeId::of::<WithStdoutWriter>() => {
+                Some(&self.get_stdout_writer_context as *const _ as *const ())
             }
             _ => None,
         }

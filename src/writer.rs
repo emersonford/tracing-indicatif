@@ -113,3 +113,45 @@ mod private {
     impl Sealed for super::Stdout {}
     impl Sealed for super::Stderr {}
 }
+
+/// Returns the stderr writer (equivalent to
+/// [get_stderr_writer](crate::IndicatifLayer::get_stderr_writer)) of the registered
+/// [IndicatifLayer](crate::IndicatifLayer) for the current default tracing subscriber.
+///
+/// Returns `None` if there is either no default tracing subscriber or if there is not a
+/// `IndicatifLayer` registered with that subscriber.
+pub fn get_indicatif_stderr_writer() -> Option<IndicatifWriter<Stderr>> {
+    tracing::dispatcher::get_default(|dispatch| {
+        dispatch
+            .downcast_ref::<crate::WithStderrWriter>()
+            .and_then(|ctx| {
+                let mut ret: Option<IndicatifWriter<Stderr>> = None;
+                ctx.with_context(dispatch, |writer| {
+                    ret = Some(writer);
+                });
+
+                ret
+            })
+    })
+}
+
+/// Returns the stdout writer (equivalent to
+/// [get_stdout_writer](crate::IndicatifLayer::get_stdout_writer)) of the registered
+/// [IndicatifLayer](crate::IndicatifLayer) for the current default tracing subscriber.
+///
+/// Returns `None` if there is either no default tracing subscriber or if there is not a
+/// `IndicatifLayer` registered with that subscriber.
+pub fn get_indicatif_stdout_writer() -> Option<IndicatifWriter<Stdout>> {
+    tracing::dispatcher::get_default(|dispatch| {
+        dispatch
+            .downcast_ref::<crate::WithStdoutWriter>()
+            .and_then(|ctx| {
+                let mut ret: Option<IndicatifWriter<Stdout>> = None;
+                ctx.with_context(dispatch, |writer| {
+                    ret = Some(writer);
+                });
+
+                ret
+            })
+    })
+}

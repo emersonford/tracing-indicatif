@@ -45,3 +45,6 @@ name = "filter"
 
 [[example]]
 name = "multithread"
+
+[[example]]
+name = "stdout_stderr_printing"
