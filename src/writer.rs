@@ -53,6 +53,19 @@ impl io::Write for IndicatifWriter<Stdout> {
     fn flush(&mut self) -> io::Result<()> {
         self.progress_bars.suspend(|| io::stdout().flush())
     }
+
+    fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
+        self.progress_bars
+            .suspend(|| io::stdout().write_vectored(bufs))
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.progress_bars.suspend(|| io::stdout().write_all(buf))
+    }
+
+    fn write_fmt(&mut self, fmt: std::fmt::Arguments<'_>) -> io::Result<()> {
+        self.progress_bars.suspend(|| io::stdout().write_fmt(fmt))
+    }
 }
 
 impl io::Write for IndicatifWriter<Stderr> {
@@ -62,6 +75,19 @@ impl io::Write for IndicatifWriter<Stderr> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.progress_bars.suspend(|| io::stderr().flush())
+    }
+
+    fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
+        self.progress_bars
+            .suspend(|| io::stderr().write_vectored(bufs))
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.progress_bars.suspend(|| io::stderr().write_all(buf))
+    }
+
+    fn write_fmt(&mut self, fmt: std::fmt::Arguments<'_>) -> io::Result<()> {
+        self.progress_bars.suspend(|| io::stderr().write_fmt(fmt))
     }
 }
 
