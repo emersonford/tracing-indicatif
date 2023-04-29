@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.3.4 - 2023-04-28
+* add methods to fetch the `IndicatifWriter` globally if there is a default tracing subscriber and if the `IndicatifLayer` has been added
+
 ## 0.3.3 - 2023-04-27
 * fix a very suble race condition that could trigger a panic (#3, thanks again @Kyuuhachi!)
 
