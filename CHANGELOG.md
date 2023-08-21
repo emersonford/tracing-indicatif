@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.3.5 - 2023-08-21
+* add method to suspend progress bars managed by IndicatifLayer, e.g. to show dialogue confirmations (closes #4)
+
 ## 0.3.4 - 2023-04-28
 * add methods to fetch the `IndicatifWriter` globally if there is a default tracing subscriber and if the `IndicatifLayer` has been added
 

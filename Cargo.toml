@@ -1,6 +1,6 @@
 [package]
 name = "tracing-indicatif"
-version = "0.3.4"
+version = "0.3.5"
 edition = "2021"
 description = "Tracing layer that automatically creates and manages progress bars for active spans."
 license = "MIT"
@@ -11,10 +11,10 @@ documentation = "https://docs.rs/tracing-indicatif"
 exclude = ["*.gif"]
 
 [dependencies]
-indicatif = { version = "0.17.3", features = ["in_memory"] }
+indicatif = { version = "0.17.6", features = ["in_memory"] }
 tracing = "0.1.37"
 tracing-core = "0.1.30"
-tracing-subscriber = { version = "0.3.16" }
+tracing-subscriber = { version = "0.3.17" }
 
 [dev-dependencies]
 futures = "0.3.26"
