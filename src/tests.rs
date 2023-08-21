@@ -15,6 +15,7 @@ use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::span_ext::IndicatifSpanExt;
+use crate::suspend_tracing_indicatif;
 use crate::IndicatifLayer;
 
 #[derive(Clone)]
@@ -651,4 +652,80 @@ INFO tracing_indicatif::tests: hello world!
             .trim()
         );
     });
+}
+
+#[test]
+fn test_suspend_with_layer() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span1 = info_span!("foo");
+        _span1.pb_start();
+
+        thread::sleep(Duration::from_millis(10));
+        assert_eq!(
+            term.contents(),
+            r#"
+foo{}
+            "#
+            .trim()
+        );
+
+        let _ = suspend_tracing_indicatif(|| term.write_line("hello world"));
+
+        assert_eq!(
+            term.contents()
+                .lines()
+                .map(|line| line.trim())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            r#"
+hello world
+foo{}
+            "#
+            .trim()
+        );
+
+        let _ = suspend_tracing_indicatif(|| term.write_line("this is a test"));
+
+        assert_eq!(
+            term.contents()
+                .lines()
+                .map(|line| line.trim())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            r#"
+hello world
+this is a test
+foo{}
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
+fn test_suspend_without_layer() {
+    let term = InMemoryTerm::new(10, 100);
+
+    assert_eq!(
+        term.contents(),
+        r#"
+        "#
+        .trim()
+    );
+
+    let _ = suspend_tracing_indicatif(|| term.write_line("hello world"));
+
+    assert_eq!(
+        term.contents()
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<_>>()
+            .join("\n"),
+        r#"
+hello world
+        "#
+        .trim()
+    );
 }

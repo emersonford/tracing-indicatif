@@ -101,6 +101,9 @@ pub(crate) struct WithStdoutWriter(
     fn(&tracing::Dispatch, f: &mut dyn FnMut(IndicatifWriter<writer::Stdout>)),
 );
 
+#[allow(clippy::type_complexity)]
+pub(crate) struct WithMultiProgress(fn(&tracing::Dispatch, f: &mut dyn FnMut(MultiProgress)));
+
 impl WithContext {
     pub(crate) fn with_context(
         &self,
@@ -127,6 +130,16 @@ impl WithStdoutWriter {
         &self,
         dispatch: &tracing::Dispatch,
         mut f: impl FnMut(IndicatifWriter<writer::Stdout>),
+    ) {
+        (self.0)(dispatch, &mut f)
+    }
+}
+
+impl WithMultiProgress {
+    pub(crate) fn with_context(
+        &self,
+        dispatch: &tracing::Dispatch,
+        mut f: impl FnMut(MultiProgress),
     ) {
         (self.0)(dispatch, &mut f)
     }
@@ -293,6 +306,7 @@ pub struct IndicatifLayer<S, F = DefaultFields> {
     get_context: WithContext,
     get_stderr_writer_context: WithStderrWriter,
     get_stdout_writer_context: WithStdoutWriter,
+    get_multi_progress_context: WithMultiProgress,
     inner: PhantomData<S>,
 }
 
@@ -348,6 +362,7 @@ where
             get_context: WithContext(Self::get_context),
             get_stderr_writer_context: WithStderrWriter(Self::get_stderr_writer_context),
             get_stdout_writer_context: WithStdoutWriter(Self::get_stdout_writer_context),
+            get_multi_progress_context: WithMultiProgress(Self::get_multi_progress_context),
             inner: PhantomData,
         }
     }
@@ -404,6 +419,7 @@ impl<S, F> IndicatifLayer<S, F> {
             get_context: self.get_context,
             get_stderr_writer_context: self.get_stderr_writer_context,
             get_stdout_writer_context: self.get_stdout_writer_context,
+            get_multi_progress_context: self.get_multi_progress_context,
             inner: self.inner,
         }
     }
@@ -511,6 +527,14 @@ where
             .expect("subscriber should downcast to expected type; this is a bug!");
 
         f(layer.get_stdout_writer())
+    }
+
+    fn get_multi_progress_context(dispatch: &tracing::Dispatch, f: &mut dyn FnMut(MultiProgress)) {
+        let layer = dispatch
+            .downcast_ref::<IndicatifLayer<S, F>>()
+            .expect("subscriber should downcast to expected type; this is a bug!");
+
+        f(layer.mp.clone())
     }
 }
 
@@ -650,8 +674,41 @@ where
             id if id == TypeId::of::<WithStdoutWriter>() => {
                 Some(&self.get_stdout_writer_context as *const _ as *const ())
             }
+            id if id == TypeId::of::<WithMultiProgress>() => {
+                Some(&self.get_multi_progress_context as *const _ as *const ())
+            }
             _ => None,
         }
+    }
+}
+
+/// Hide all progress bars managed by [`IndicatifLayer`] (if it exists), executes `f`, then redraws
+/// the progress bars. Identical to [`indicatif::MultiProgress::suspend`].
+///
+/// Executes `f` even if there is no default tracing subscriber or if a `IndicatifLayer` has not
+/// been registered to that subscriber.
+///
+/// NOTE: this does not suspend stdout/stderr prints from other threads, including things like
+/// `tracing::info!`. This only suspends the drawing of progress bars.
+///
+/// WARNING: this holds an internal lock within `MultiProgress`. Calling methods like
+/// `writeln!(get_indicatif_stderr_writer(), "foobar")` or calling this method inside of `f` will
+/// result in a deadlock.
+pub fn suspend_tracing_indicatif<F: FnOnce() -> R, R>(f: F) -> R {
+    let mut mp: Option<MultiProgress> = None;
+
+    tracing::dispatcher::get_default(|dispatch| {
+        if let Some(ctx) = dispatch.downcast_ref::<WithMultiProgress>() {
+            ctx.with_context(dispatch, |fetched_mp| {
+                mp = Some(fetched_mp);
+            })
+        }
+    });
+
+    if let Some(mp) = mp {
+        mp.suspend(f)
+    } else {
+        f()
     }
 }
 
