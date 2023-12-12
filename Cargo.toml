@@ -21,7 +21,7 @@ futures = "0.3.26"
 tokio = { version = "1.25.0", features = ["full"] }
 rand = { version = "0.8.5", features = ["std_rng"] }
 console = "0.15.5"
-dialoguer = "0.10.4"
+dialoguer = "0.11.0"
 
 [lib]
 name = "tracing_indicatif"
