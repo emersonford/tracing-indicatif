@@ -1,5 +1,8 @@
 # Change Log
 
+## 0.3.6 - 2023-12-11
+* update dev dependencies (#8)
+
 ## 0.3.5 - 2023-08-21
 * add method to suspend progress bars managed by IndicatifLayer, e.g. to show dialogue confirmations (closes #4)
 
