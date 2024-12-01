@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,7 +21,7 @@ pub(crate) struct ProgressBarManager {
     max_progress_bars: u64,
     // This is used in the footer progress bar and tracks the actual number of pending progress
     // bars.
-    pending_progress_bars: Arc<AtomicU64>,
+    pending_progress_bars: Arc<AtomicUsize>,
     // The `.len()` of this may differ from `pending_progress_bars`. If a span closes before its
     // progress bar is ever un-hidden, we decrement `pending_progress_bars` but won't clean the
     // span entry up from this `VecDeque` for performance reasons. Instead, whenever we do un-hide
@@ -36,7 +36,7 @@ impl ProgressBarManager {
         max_progress_bars: u64,
         footer_progress_style: Option<ProgressStyle>,
     ) -> Self {
-        let pending_progress_bars = Arc::new(AtomicU64::new(0));
+        let pending_progress_bars = Arc::new(AtomicUsize::new(0));
 
         Self {
             mp: {
@@ -56,7 +56,7 @@ impl ProgressBarManager {
                         let _ = write!(
                             writer,
                             "{}",
-                            pending_progress_bars.load(std::sync::atomic::Ordering::SeqCst)
+                            pending_progress_bars.load(std::sync::atomic::Ordering::Acquire)
                         );
                     },
                 ))
@@ -67,7 +67,7 @@ impl ProgressBarManager {
     fn decrement_pending_pb(&mut self) {
         let prev_val = self
             .pending_progress_bars
-            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
 
         // If this span was the last one pending, clear the footer (if it was active).
         if prev_val == 1 {
@@ -91,7 +91,7 @@ impl ProgressBarManager {
     fn add_pending_pb(&mut self, span_id: &span::Id) {
         let prev_val = self
             .pending_progress_bars
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.pending_spans.push_back(span_id.clone());
 
         if prev_val == 0 {
