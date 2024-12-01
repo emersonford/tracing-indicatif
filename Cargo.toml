@@ -11,16 +11,16 @@ documentation = "https://docs.rs/tracing-indicatif"
 exclude = ["*.gif"]
 
 [dependencies]
-indicatif = { version = "0.17.6", features = ["in_memory"] }
-tracing = "0.1.37"
-tracing-core = "0.1.30"
-tracing-subscriber = { version = "0.3.17" }
+indicatif = { version = "0.17.9", features = ["in_memory"] }
+tracing = "0.1.40"
+tracing-core = "0.1.32"
+tracing-subscriber = { version = "0.3.18" }
 
 [dev-dependencies]
-futures = "0.3.26"
-tokio = { version = "1.25.0", features = ["full"] }
+futures = "0.3.31"
+tokio = { version = "1.41.1", features = ["full"] }
 rand = { version = "0.8.5", features = ["std_rng"] }
-console = "0.15.5"
+console = "0.15.8"
 dialoguer = "0.11.0"
 
 [lib]
