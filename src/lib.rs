@@ -712,5 +712,47 @@ pub fn suspend_tracing_indicatif<F: FnOnce() -> R, R>(f: F) -> R {
     }
 }
 
+/// Helper macro that allows you to print to stdout without interfering with the progress bars
+/// created by tracing-indicatif.
+///
+/// Args are directly forwarded to `writeln!`. Do not call this macro inside of
+/// `suspend_tracing_indicatif` or you will trigger a deadlock.
+#[macro_export]
+macro_rules! indicatif_println {
+    ($($arg:tt)*) => {
+        {
+            use std::io::Write;
+
+            if let Some(mut writer) = $crate::writer::get_indicatif_stdout_writer() {
+                writeln!(writer, $($arg)*).unwrap();
+            } else {
+                #[allow(clippy::explicit_write)]
+                writeln!(std::io::stdout(), $($arg)*).unwrap();
+            }
+        }
+    }
+}
+
+/// Helper macro that allows you to print to stderr without interfering with the progress bars
+/// created by tracing-indicatif.
+///
+/// Args are directly forwarded to `writeln!`. Do not call this macro inside of
+/// `suspend_tracing_indicatif` or you will trigger a deadlock.
+#[macro_export]
+macro_rules! indicatif_eprintln {
+    ($($arg:tt)*) => {
+        {
+            use std::io::Write;
+
+            if let Some(mut writer) = $crate::writer::get_indicatif_stderr_writer() {
+                writeln!(writer, $($arg)*).unwrap();
+            } else {
+                #[allow(clippy::explicit_write)]
+                writeln!(std::io::stderr(), $($arg)*).unwrap();
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;

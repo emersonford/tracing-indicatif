@@ -729,3 +729,14 @@ hello world
         .trim()
     );
 }
+
+// These don't actually run anything, but exist to type check macros.
+#[allow(dead_code)]
+fn type_check_indicatif_println() {
+    indicatif_println!("{}", "hello");
+}
+
+#[allow(dead_code)]
+fn type_check_indicatif_eprintln() {
+    indicatif_eprintln!("{}", "hello");
+}
