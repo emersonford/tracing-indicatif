@@ -1,4 +1,7 @@
 # Change Log
+## 0.3.8 - 2024-12-01
+* improve docs
+
 ## 0.3.7 - 2024-12-01
 * bump dependencies
 * allow for customizing tick/redraw intervals

@@ -1,6 +1,6 @@
 [package]
 name = "tracing-indicatif"
-version = "0.3.7"
+version = "0.3.8"
 edition = "2021"
 description = "Tracing layer that automatically creates and manages progress bars for active spans."
 license = "MIT"
