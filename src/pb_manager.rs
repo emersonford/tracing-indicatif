@@ -80,7 +80,9 @@ impl ProgressBarManager {
             );
 
             if let Some(footer_pb) = self.footer_pb.as_ref() {
-                self.mp.set_move_cursor(false);
+                // Appears to have broken with
+                // https://github.com/console-rs/indicatif/pull/648
+                // self.mp.set_move_cursor(false);
                 footer_pb.finish_and_clear();
                 self.mp.remove(footer_pb);
                 footer_pb.disable_steady_tick();
@@ -107,7 +109,9 @@ impl ProgressBarManager {
             if let Some(footer_pb) = self.footer_pb.as_ref() {
                 self.mp.add(footer_pb.clone());
                 footer_pb.enable_steady_tick(Duration::from_millis(100));
-                self.mp.set_move_cursor(true);
+                // Appears to have broken with
+                // https://github.com/console-rs/indicatif/pull/648
+                // self.mp.set_move_cursor(true);
             }
         }
     }
