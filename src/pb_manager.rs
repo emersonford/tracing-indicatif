@@ -15,6 +15,45 @@ use tracing_subscriber::registry::LookupSpan;
 
 use crate::IndicatifSpanContext;
 
+/// Controls how often progress bars are recalculated and redrawn to the terminal.
+#[derive(Clone)]
+pub struct TickSettings {
+    /// The rate at which to draw to the terminal.
+    ///
+    /// A value of 20 here means indicatif will redraw the terminal state 20 times a second (i.e.
+    /// once every 50ms).
+    term_draw_hz: u8,
+    /// The default interval to pass to `enable_steady_tick` for a new progress bar. This controls
+    /// how often the progress bar state is recalculated. Defaults to
+    /// `Some(Duration::from_millis(100))`.
+    ///
+    /// Note, this does not control how often the progress bar is actually redrawn, that is
+    /// controlled by [`Self::term_draw_hz`].
+    ///
+    /// Using `None` here will disable steady ticks for your progress bars.
+    default_tick_interval: Option<Duration>,
+    /// The interval to pass to `enable_steady_tick` for the footer progress bar. This controls
+    /// how often the footer progress bar state is recalculated. Defaults to `None`.
+    ///
+    /// Note, this does not control how often the footer progress bar is actually redrawn, that is
+    /// controlled by [`Self::term_draw_hz`].
+    ///
+    /// Using `None` here will disable steady ticks for the footer progress bar. Unless you have a
+    /// spinner in your footer, you should set this to `None` as we manually redraw the footer
+    /// whenever something changes.
+    footer_tick_interval: Option<Duration>,
+}
+
+impl Default for TickSettings {
+    fn default() -> Self {
+        Self {
+            term_draw_hz: 20,
+            default_tick_interval: Some(Duration::from_millis(100)),
+            footer_tick_interval: None,
+        }
+    }
+}
+
 pub(crate) struct ProgressBarManager {
     pub(crate) mp: MultiProgress,
     active_progress_bars: u64,
@@ -29,39 +68,64 @@ pub(crate) struct ProgressBarManager {
     pending_spans: VecDeque<span::Id>,
     // If this is `None`, a footer will never be shown.
     footer_pb: Option<ProgressBar>,
+    tick_settings: TickSettings,
 }
 
 impl ProgressBarManager {
     pub(crate) fn new(
         max_progress_bars: u64,
         footer_progress_style: Option<ProgressStyle>,
+        tick_settings: TickSettings,
     ) -> Self {
-        let pending_progress_bars = Arc::new(AtomicUsize::new(0));
-
-        Self {
+        let mut s = Self {
             mp: {
                 let mp = MultiProgress::new();
-                mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(20));
+                mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(
+                    tick_settings.term_draw_hz,
+                ));
 
                 mp
             },
             active_progress_bars: 0,
-            max_progress_bars,
-            pending_progress_bars: pending_progress_bars.clone(),
+            max_progress_bars: 0,
+            pending_progress_bars: Arc::new(AtomicUsize::new(0)),
             pending_spans: VecDeque::new(),
-            footer_pb: footer_progress_style.map(|style| {
-                ProgressBar::hidden().with_style(style.with_key(
-                    "pending_progress_bars",
-                    move |_: &ProgressState, writer: &mut dyn std::fmt::Write| {
-                        let _ = write!(
-                            writer,
-                            "{}",
-                            pending_progress_bars.load(std::sync::atomic::Ordering::Acquire)
-                        );
-                    },
-                ))
-            }),
-        }
+            footer_pb: None,
+            tick_settings,
+        };
+
+        s.set_max_progress_bars(max_progress_bars, footer_progress_style);
+
+        s
+    }
+
+    pub(crate) fn set_max_progress_bars(
+        &mut self,
+        max_progress_bars: u64,
+        footer_style: Option<ProgressStyle>,
+    ) {
+        self.max_progress_bars = max_progress_bars;
+
+        let pending_progress_bars = self.pending_progress_bars.clone();
+        self.footer_pb = footer_style.map(move |style| {
+            ProgressBar::hidden().with_style(style.with_key(
+                "pending_progress_bars",
+                move |_: &ProgressState, writer: &mut dyn std::fmt::Write| {
+                    let _ = write!(
+                        writer,
+                        "{}",
+                        pending_progress_bars.load(std::sync::atomic::Ordering::Acquire)
+                    );
+                },
+            ))
+        });
+    }
+
+    pub(crate) fn set_tick_settings(&mut self, tick_settings: TickSettings) {
+        self.mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(
+            tick_settings.term_draw_hz,
+        ));
+        self.tick_settings = tick_settings;
     }
 
     fn decrement_pending_pb(&mut self) {
@@ -69,23 +133,25 @@ impl ProgressBarManager {
             .pending_progress_bars
             .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
 
-        // If this span was the last one pending, clear the footer (if it was active).
-        if prev_val == 1 {
-            debug_assert!(
-                self.footer_pb
-                    .as_ref()
-                    .map(|pb| !pb.is_hidden())
-                    .unwrap_or(true),
-                "footer progress bar was hidden despite there being pending progress bars"
-            );
+        if let Some(footer_pb) = self.footer_pb.as_ref() {
+            // If this span was the last one pending, clear the footer (if it was active).
+            if prev_val == 1 {
+                debug_assert!(
+                    !footer_pb.is_hidden(),
+                    "footer progress bar was hidden despite there being pending progress bars"
+                );
 
-            if let Some(footer_pb) = self.footer_pb.as_ref() {
+                if self.tick_settings.footer_tick_interval.is_some() {
+                    footer_pb.disable_steady_tick();
+                }
+
                 // Appears to have broken with
                 // https://github.com/console-rs/indicatif/pull/648
                 // self.mp.set_move_cursor(false);
                 footer_pb.finish_and_clear();
                 self.mp.remove(footer_pb);
-                footer_pb.disable_steady_tick();
+            } else {
+                footer_pb.tick();
             }
         }
     }
@@ -96,23 +162,25 @@ impl ProgressBarManager {
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.pending_spans.push_back(span_id.clone());
 
-        if prev_val == 0 {
-            debug_assert!(
-                self.footer_pb
-                    .as_ref()
-                    .map(|pb| pb.is_hidden())
-                    .unwrap_or(true),
-                "footer progress bar was not hidden despite there being no pending progress bars"
-            );
+        // Show the footer progress bar.
+        if let Some(footer_pb) = self.footer_pb.as_ref() {
+            if prev_val == 0 {
+                debug_assert!(
+                    footer_pb.is_hidden(),
+                    "footer progress bar was not hidden despite there being no pending progress bars"
+                );
 
-            // Show the footer progress bar.
-            if let Some(footer_pb) = self.footer_pb.as_ref() {
+                if let Some(tick_interval) = self.tick_settings.footer_tick_interval {
+                    footer_pb.enable_steady_tick(tick_interval);
+                }
+
                 self.mp.add(footer_pb.clone());
-                footer_pb.enable_steady_tick(Duration::from_millis(100));
                 // Appears to have broken with
                 // https://github.com/console-rs/indicatif/pull/648
                 // self.mp.set_move_cursor(true);
             }
+
+            footer_pb.tick();
         }
     }
 
@@ -145,7 +213,9 @@ impl ProgressBarManager {
 
             self.active_progress_bars += 1;
 
-            pb.enable_steady_tick(Duration::from_millis(100));
+            if let Some(tick_interval) = self.tick_settings.default_tick_interval {
+                pb.enable_steady_tick(tick_interval);
+            }
             pb_span_ctx.progress_bar = Some(pb);
         } else {
             self.add_pending_pb(span_id);

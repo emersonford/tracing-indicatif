@@ -44,6 +44,7 @@ pub mod util;
 pub mod writer;
 
 use pb_manager::ProgressBarManager;
+pub use pb_manager::TickSettings;
 pub use writer::IndicatifWriter;
 
 #[derive(Clone)]
@@ -347,6 +348,7 @@ where
                 )
                 .unwrap(),
             ),
+            TickSettings::default(),
         );
         let mp = pb_manager.mp.clone();
 
@@ -470,14 +472,20 @@ impl<S, F> IndicatifLayer<S, F> {
         max_progress_bars: u64,
         footer_style: Option<ProgressStyle>,
     ) -> Self {
-        // TODO(emersonford): refactor this so we don't need to create a new pb_manager and can
-        // just edit the existing one in place.
-        let pb_manager = ProgressBarManager::new(max_progress_bars, footer_style);
-        let mp = pb_manager.mp.clone();
+        self.pb_manager
+            .get_mut()
+            .unwrap()
+            .set_max_progress_bars(max_progress_bars, footer_style);
 
-        self.pb_manager = Mutex::new(pb_manager);
-        self.mp = mp;
+        self
+    }
 
+    /// Configures how often progress bars are recalcuated and redrawn to the terminal.
+    pub fn with_tick_settings(mut self, tick_settings: TickSettings) -> Self {
+        self.pb_manager
+            .get_mut()
+            .unwrap()
+            .set_tick_settings(tick_settings);
         self
     }
 }
