@@ -24,6 +24,7 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
+pub use indicatif::style;
 use indicatif::style::ProgressStyle;
 use indicatif::style::ProgressTracker;
 use indicatif::MultiProgress;
