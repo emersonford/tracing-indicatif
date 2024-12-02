@@ -104,12 +104,10 @@ impl ProgressBarManager {
             );
 
             // Show the footer progress bar.
-            if let Some(footer_pb) = self.footer_pb.take() {
-                let pb = self.mp.add(footer_pb);
-                pb.enable_steady_tick(Duration::from_millis(100));
+            if let Some(footer_pb) = self.footer_pb.as_ref() {
+                self.mp.add(footer_pb.clone());
+                footer_pb.enable_steady_tick(Duration::from_millis(100));
                 self.mp.set_move_cursor(true);
-
-                self.footer_pb = Some(pb);
             }
         }
     }
