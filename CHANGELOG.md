@@ -1,4 +1,11 @@
 # Change Log
+## 0.3.7 - 2024-12-01
+* bump dependencies
+* allow for customizing tick/redraw intervals
+* fix bug around footer not appearing after disappearing once
+* re-export indicatif `ProgressStyle` for ease of use
+* provide helper macros for printing to stdout/stderr without interfering with progress bars
+* disable use of `set_move_cursor` due to regression in indicatif 0.17.9 (https://github.com/console-rs/indicatif/issues/669), this may introduce new flickering unfortunately
 
 ## 0.3.6 - 2023-12-11
 * update dev dependencies (#8)
