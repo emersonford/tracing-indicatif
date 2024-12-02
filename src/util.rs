@@ -10,7 +10,7 @@ use tracing_subscriber::{
     fmt::{format::Writer, FormatFields},
 };
 
-/// Wraps around an existing struct that impls [FormatFields], but allows for filtering specific
+/// Wraps around an existing struct that impls [`FormatFields`], but allows for filtering specific
 /// fields from spans or events.
 pub struct FilteredFormatFields<Format, Filter> {
     format: Format,
@@ -23,7 +23,7 @@ where
     Format::Visitor: VisitFmt + VisitOutput<fmt::Result>,
     Filter: Clone + Fn(&Field) -> bool,
 {
-    /// Wraps around an existing struct that impls [FormatFields], but filters out any fields which
+    /// Wraps around an existing struct that impls [`FormatFields`], but filters out any fields which
     /// returns _false_ when passed into `filter`.
     pub fn new(format: Format, filter: Filter) -> Self {
         Self { format, filter }

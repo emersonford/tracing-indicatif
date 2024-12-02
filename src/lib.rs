@@ -1,4 +1,19 @@
-//! See [IndicatifLayer] for the main documentation.
+//! A [tracing](https://docs.rs/tracing/latest/tracing/) layer that automatically creates and manages [indicatif](https://docs.rs/indicatif/latest/indicatif/index.html) progress bars for active spans.
+//!
+//! Progress bars are a great way to make your CLIs feel more responsive. However,
+//! adding and managing progress bars in your libraries can be invasive, unergonomic,
+//! and difficult to keep track of.
+//!
+//! This library aims to make it easy to show progress bars for your CLI by tying
+//! progress bars to [tracing spans](https://docs.rs/tracing/latest/tracing/#spans).
+//! For CLIs/libraries already using tracing spans, this allow for a dead simple (3
+//! line) code change to enable a smooth progress bar experience for your program.
+//! This eliminates having to have code in your libraries to manually manage
+//! progress bar instances.
+//!
+//! This ends up working quite well as progress bars are fundamentally tracking the
+//! lifetime of some "span" (whether that "span" is defined explicitly or implicitly),
+//! so might as well make that relationship explicit.
 //!
 //! An easy quick start for this crate is:
 //! ```
@@ -13,17 +28,19 @@
 //!     .with(indicatif_layer)
 //!     .init();
 //! ```
+//! See [`IndicatifLayer`] for additional documentation.
 //!
-//! And see the `examples` folder for examples of how to customize the layer / progress bar
+//! See the [`examples`](https://github.com/emersonford/tracing-indicatif/tree/main/examples) folder for examples of how to customize the layer / progress bar
 //! appearance.
 //!
-//! It is highly recommended you pass `indicatif_layer.get_stderr_writer()` or
+//! Note: it is highly recommended you pass `indicatif_layer.get_stderr_writer()` or
 //! `indicatif_layer.get_stdout_writer()` to your `fmt::layer()` (depending on where you want to
 //! emit tracing logs) to prevent progress bars from clobbering any console logs.
 use std::any::TypeId;
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
+/// Re-export of [`indicatif`]'s style module for ease of use.
 pub use indicatif::style;
 use indicatif::style::ProgressStyle;
 use indicatif::style::ProgressTracker;
@@ -45,6 +62,7 @@ pub mod writer;
 
 use pb_manager::ProgressBarManager;
 pub use pb_manager::TickSettings;
+#[doc(inline)]
 pub use writer::IndicatifWriter;
 
 #[derive(Clone)]
@@ -292,7 +310,7 @@ impl IndicatifSpanContext {
 /// attaches [filters to this
 /// layer](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/index.html#filtering-with-layers)
 /// to control which spans actually have progress bars generated for them. See
-/// [filter::IndicatifFilter] for a rudimentary filter.
+/// [`filter::IndicatifFilter`] for a rudimentary filter.
 ///
 /// Progress bars will be started the very first time a span is [entered](tracing::Span::enter)
 /// or when one of its child spans is entered for the first time, and will finish when the span
@@ -300,8 +318,8 @@ impl IndicatifSpanContext {
 ///
 /// Progress bars are emitted to stderr.
 ///
-/// Under the hood, this just uses indicatif's [MultiProgress](indicatif::MultiProgress) struct to
-/// manage individual [ProgressBar](indicatif::ProgressBar) instances per span.
+/// Under the hood, this just uses indicatif's [`MultiProgress`] struct to
+/// manage individual [`ProgressBar`] instances per span.
 pub struct IndicatifLayer<S, F = DefaultFields> {
     pb_manager: Mutex<ProgressBarManager>,
     // Allows us to fetch the `MultiProgress` without taking a lock.
@@ -384,27 +402,27 @@ impl<S, F> IndicatifLayer<S, F> {
         self.get_stderr_writer()
     }
 
-    /// Returns the a writer for [std::io::Stderr] that ensures its output will not be clobbered by
+    /// Returns the a writer for [`std::io::Stderr`] that ensures its output will not be clobbered by
     /// active progress bars.
     ///
     /// Instead of `eprintln!(...)` prefer `writeln!(indicatif_layer.get_stderr_writer(), ...)`
     /// instead to ensure your output is not clobbered by active progress bars.
     ///
     /// If one wishes tracing logs to be output to stderr, this should be passed into
-    /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
+    /// [`fmt::Layer::with_writer`](tracing_subscriber::fmt::Layer::with_writer).
     pub fn get_stderr_writer(&self) -> IndicatifWriter<writer::Stderr> {
         // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
         IndicatifWriter::new(self.mp.clone())
     }
 
-    /// Returns the a writer for [std::io::Stdout] that ensures its output will not be clobbered by
+    /// Returns the a writer for [`std::io::Stdout`] that ensures its output will not be clobbered by
     /// active progress bars.
     ///
     /// Instead of `println!(...)` prefer `writeln!(indicatif_layer.get_stdout_writer(), ...)`
     /// instead to ensure your output is not clobbered by active progress bars.
     ///
     /// If one wishes tracing logs to be output to stdout, this should be passed into
-    /// [fmt::Layer::with_writer](tracing_subscriber::fmt::Layer::with_writer).
+    /// [`fmt::Layer::with_writer`](tracing_subscriber::fmt::Layer::with_writer).
     pub fn get_stdout_writer(&self) -> IndicatifWriter<writer::Stdout> {
         // `MultiProgress` is merely a wrapper over an `Arc`, so we can clone here.
         IndicatifWriter::new(self.mp.clone())
@@ -413,7 +431,7 @@ impl<S, F> IndicatifLayer<S, F> {
     /// Set the formatter for span fields, the result of which will be available as the
     /// progress bar template key `span_fields`.
     ///
-    /// The default is the [DefaultFields] formatter.
+    /// The default is the [`DefaultFields`] formatter.
     pub fn with_span_field_formatter<F2>(self, formatter: F2) -> IndicatifLayer<S, F2>
     where
         F2: for<'writer> FormatFields<'writer> + 'static,

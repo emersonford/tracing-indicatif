@@ -23,16 +23,16 @@ so might as well make that relationship explicit.
 See the [`examples`](https://github.com/emersonford/tracing-indicatif/tree/main/examples)
 folder for demo code.
 
-### Default Configuration
+### [Default Configuration](https://github.com/emersonford/tracing-indicatif/blob/main/examples/basic.rs)
 ![demo using basic example](basic.gif)
 
-### Default Configuration with Child Spans
+### [Default Configuration with Child Spans](https://github.com/emersonford/tracing-indicatif/blob/main/examples/child_spans.rs)
 ![demo using child_spans example](child_spans.gif)
 
-### Progress Bar
+### [Progress Bar](https://github.com/emersonford/tracing-indicatif/blob/main/examples/progress_bar.rs)
 ![demo using progress_bar example](progress_bar.gif)
 
-### Build Console Like
+### [Build Console Like](https://github.com/emersonford/tracing-indicatif/blob/main/examples/build_console.rs)
 A recreation of `buck2`'s [superconsole](https://github.com/facebookincubator/superconsole).
 ![demo using build_console example](build_console.gif)
 

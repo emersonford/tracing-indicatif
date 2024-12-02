@@ -15,7 +15,7 @@ fn apply_to_indicatif_span(span: &Span, f: impl FnMut(&mut IndicatifSpanContext)
     });
 }
 
-/// Utilities to modify the progress bar associated to tracing [Span]'s (if one exists).
+/// Utilities to modify the progress bar associated to tracing [`Span`]'s (if one exists).
 ///
 /// For example, you can call these on the current Span:
 /// ```
@@ -26,12 +26,12 @@ fn apply_to_indicatif_span(span: &Span, f: impl FnMut(&mut IndicatifSpanContext)
 /// ```
 ///
 /// NOTE: These methods will silently have no effect if a
-/// [IndicatifLayer](crate::IndicatifLayer) was not registered with the tracing subscriber,
+/// [`IndicatifLayer`](crate::IndicatifLayer) was not registered with the tracing subscriber,
 /// or if this span was filtered for the registered `IndicatifLayer`. Because of this behavior, you
 /// can "safely" call these methods inside of non-CLI contexts as these methods will gracefully
 /// do nothing if you have not enabled progress bars for your tracing spans.
 pub trait IndicatifSpanExt {
-    /// Sets the [ProgressStyle] of the progress bar associated with this span.
+    /// Sets the [`ProgressStyle`] of the progress bar associated with this span.
     ///
     /// If this span has not yet been entered, this will be the progress style the progress bar for
     /// this span uses when the span is entered for the first time. If this span has been entered,
@@ -44,31 +44,31 @@ pub trait IndicatifSpanExt {
     fn pb_start(&self);
 
     /// Sets the length of the progress bar for this span. See
-    /// [set_length](indicatif::ProgressBar::set_length).
+    /// [`set_length`](indicatif::ProgressBar::set_length).
     fn pb_set_length(&self, len: u64);
 
     /// Sets the position of the progress bar for this span. See
-    /// [set_position](indicatif::ProgressBar::set_position).
+    /// [`set_position`](indicatif::ProgressBar::set_position).
     ///
-    /// WARNING: you should call [Self::pb_set_length] at least once before calling this method, or you
+    /// WARNING: you should call [`Self::pb_set_length`] at least once before calling this method, or you
     /// may see a buggy progress bar.
     fn pb_set_position(&self, pos: u64);
 
     /// Increments the position of the progress bar for this span. See
-    /// [inc](indicatif::ProgressBar::inc).
+    /// [`inc`](indicatif::ProgressBar::inc).
     ///
-    /// WARNING: you should call [Self::pb_set_length] at least once before calling this method, or you
+    /// WARNING: you should call [`Self::pb_set_length`] at least once before calling this method, or you
     /// may see a buggy progress bar.
     fn pb_inc(&self, delta: u64);
 
     /// Increments the length of the progress bar for this span. See
-    /// [inc_length](indicatif::ProgressBar::inc_length).
+    /// [`inc_length`](indicatif::ProgressBar::inc_length).
     ///
-    /// Has no effect if [Self::pb_set_length] has not been called at least once.
+    /// Has no effect if [`Self::pb_set_length`] has not been called at least once.
     fn pb_inc_length(&self, delta: u64);
 
     /// Sets the message of the progress bar for this span. See
-    /// [set_message](indicatif::ProgressBar::set_message).
+    /// [`set_message`](indicatif::ProgressBar::set_message).
     fn pb_set_message(&self, msg: &str);
 
     /// Trigger a recalculation of the progress bar state. See

@@ -7,16 +7,16 @@ use tracing_subscriber::fmt::MakeWriter;
 
 pub trait WriterTarget: private::Sealed {}
 
-/// Marker for where the [IndicatifWriter] should write to.
+/// Marker for where the [`IndicatifWriter`] should write to.
 pub struct Stdout {}
-/// Marker for where the [IndicatifWriter] should write to.
+/// Marker for where the [`IndicatifWriter`] should write to.
 pub struct Stderr {}
 
 impl WriterTarget for Stdout {}
 impl WriterTarget for Stderr {}
 
 // TODO(emersonford): find a cleaner way to integrate this layer with fmt::Layer.
-/// A wrapper around [std::io::stdout()] or [std::io::stderr()] to ensure that output to either is
+/// A wrapper around [`std::io::stdout()`] or [`std::io::stderr()`] to ensure that output to either is
 /// not clobbered by active progress bars. This should be passed into tracing fmt's layer so
 /// tracing log entries are not clobbered.
 pub struct IndicatifWriter<Target = Stderr> {
@@ -115,8 +115,8 @@ mod private {
 }
 
 /// Returns the stderr writer (equivalent to
-/// [get_stderr_writer](crate::IndicatifLayer::get_stderr_writer)) of the registered
-/// [IndicatifLayer](crate::IndicatifLayer) for the current default tracing subscriber.
+/// [`get_stderr_writer`](crate::IndicatifLayer::get_stderr_writer)) of the registered
+/// [`IndicatifLayer`](crate::IndicatifLayer) for the current default tracing subscriber.
 ///
 /// Returns `None` if there is either no default tracing subscriber or if there is not a
 /// `IndicatifLayer` registered with that subscriber.
@@ -136,8 +136,8 @@ pub fn get_indicatif_stderr_writer() -> Option<IndicatifWriter<Stderr>> {
 }
 
 /// Returns the stdout writer (equivalent to
-/// [get_stdout_writer](crate::IndicatifLayer::get_stdout_writer)) of the registered
-/// [IndicatifLayer](crate::IndicatifLayer) for the current default tracing subscriber.
+/// [`get_stdout_writer`](crate::IndicatifLayer::get_stdout_writer)) of the registered
+/// [`IndicatifLayer`](crate::IndicatifLayer) for the current default tracing subscriber.
 ///
 /// Returns `None` if there is either no default tracing subscriber or if there is not a
 /// `IndicatifLayer` registered with that subscriber.

@@ -37,7 +37,7 @@ use crate::util::FilteredFormatFields;
 ///
 /// The value for this field is irrelevant and not factored in to the filtering (this is due to
 /// tracing not making field values available in the `on_new_span` method). To avoid confusion, it
-/// is recommended to set the value of this field to [tracing::field::Empty].
+/// is recommended to set the value of this field to [`tracing::field::Empty`].
 ///
 /// If both "indicatif.pb_show" and "indicatif.pb_hide" are present, the behavior is to show a
 /// progress bar.
@@ -83,7 +83,7 @@ impl<S: Subscriber> Filter<S> for IndicatifFilter<S> {
     }
 }
 
-/// Returns a [tracing_subscriber::fmt::FormatFields] that ignores the "indicatif.pb_show" and "indicatif.pb_hide" fields.
+/// Returns a [`tracing_subscriber::fmt::FormatFields`] that ignores the "indicatif.pb_show" and "indicatif.pb_hide" fields.
 pub fn hide_indicatif_span_fields<'writer, Format>(
     format: Format,
 ) -> FilteredFormatFields<Format, impl Fn(&Field) -> bool + Clone>
