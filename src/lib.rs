@@ -277,6 +277,12 @@ impl IndicatifSpanContext {
             *pb_len += len;
         }
     }
+
+    fn progress_bar_tick(&mut self) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.tick()
+        }
+    }
 }
 
 /// The layer that handles creating and managing indicatif progress bars for active spans. This

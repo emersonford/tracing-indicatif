@@ -70,6 +70,12 @@ pub trait IndicatifSpanExt {
     /// Sets the message of the progress bar for this span. See
     /// [set_message](indicatif::ProgressBar::set_message).
     fn pb_set_message(&self, msg: &str);
+
+    /// Trigger a recalculation of the progress bar state. See
+    /// [`tick`](indicatif::ProgressBar::tick).
+    ///
+    /// Has no effect if the progress bar for this span is not active.
+    fn pb_tick(&self);
 }
 
 impl IndicatifSpanExt for Span {
@@ -111,6 +117,12 @@ impl IndicatifSpanExt for Span {
     fn pb_set_message(&self, msg: &str) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
             indicatif_ctx.set_progress_bar_message(msg.to_string());
+        });
+    }
+
+    fn pb_tick(&self) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.progress_bar_tick();
         });
     }
 }

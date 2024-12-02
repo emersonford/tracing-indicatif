@@ -17,6 +17,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use crate::span_ext::IndicatifSpanExt;
 use crate::suspend_tracing_indicatif;
 use crate::IndicatifLayer;
+use crate::TickSettings;
 
 #[derive(Clone)]
 struct InMemoryTermWriter {
@@ -54,11 +55,15 @@ impl<'a> MakeWriter<'a> for InMemoryTermWriter {
 
 struct HelpersConfig {
     show_footer: bool,
+    enable_steady_tick: bool,
 }
 
 impl Default for HelpersConfig {
     fn default() -> Self {
-        Self { show_footer: true }
+        Self {
+            show_footer: true,
+            enable_steady_tick: false,
+        }
     }
 }
 
@@ -77,7 +82,17 @@ fn make_helpers(config: HelpersConfig) -> (impl Subscriber, InMemoryTerm) {
                 .unwrap(),
         )
         .with_span_child_prefix_indent("--")
-        .with_span_child_prefix_symbol("> ");
+        .with_span_child_prefix_symbol("> ")
+        .with_tick_settings(TickSettings {
+            term_draw_hz: 20,
+            default_tick_interval: if config.enable_steady_tick {
+                Some(Duration::from_millis(50))
+            } else {
+                None
+            },
+            footer_tick_interval: None,
+            ..Default::default()
+        });
 
     let term = InMemoryTerm::new(10, 100);
 
@@ -219,7 +234,6 @@ fn test_max_pbs() {
         let _span5 = info_span!("5");
         _span5.pb_start();
 
-        thread::sleep(Duration::from_millis(10));
         assert_eq!(
             term.contents(),
             r#"
@@ -235,7 +249,6 @@ fn test_max_pbs() {
         let _span6 = info_span!("6");
         _span6.pb_start();
 
-        thread::sleep(Duration::from_millis(10));
         assert_eq!(
             term.contents(),
             r#"
@@ -252,8 +265,6 @@ fn test_max_pbs() {
         let _span7 = info_span!("7");
         _span7.pb_start();
 
-        // Need 150ms of sleep here to trigger a refresh of the footer.
-        thread::sleep(Duration::from_millis(150));
         assert_eq!(
             term.contents(),
             r#"
@@ -269,8 +280,6 @@ fn test_max_pbs() {
 
         std::mem::drop(_span6);
 
-        // Need 150ms of sleep here to trigger a refresh of the footer.
-        thread::sleep(Duration::from_millis(150));
         assert_eq!(
             term.contents(),
             r#"
@@ -286,7 +295,6 @@ fn test_max_pbs() {
 
         std::mem::drop(_span1);
 
-        thread::sleep(Duration::from_millis(10));
         assert_eq!(
             term.contents(),
             r#"
@@ -295,6 +303,95 @@ fn test_max_pbs() {
 4{}
 5{}
 7{}
+            "#
+            .trim()
+        );
+
+        std::mem::drop(_span2);
+
+        assert_eq!(
+            term.contents(),
+            r#"
+3{}
+4{}
+5{}
+7{}
+            "#
+            .trim()
+        );
+
+        let _span8 = info_span!("8");
+        _span8.pb_start();
+
+        assert_eq!(
+            term.contents(),
+            r#"
+3{}
+4{}
+5{}
+7{}
+8{}
+            "#
+            .trim()
+        );
+
+        let _span9 = info_span!("9");
+        _span9.pb_start();
+
+        assert_eq!(
+            term.contents(),
+            r#"
+3{}
+4{}
+5{}
+7{}
+8{}
+...and 1 more not shown above.
+            "#
+            .trim()
+        );
+
+        let _span10 = info_span!("10");
+        _span10.pb_start();
+
+        assert_eq!(
+            term.contents(),
+            r#"
+3{}
+4{}
+5{}
+7{}
+8{}
+...and 2 more not shown above.
+            "#
+            .trim()
+        );
+
+        drop(_span3);
+
+        assert_eq!(
+            term.contents(),
+            r#"
+4{}
+5{}
+7{}
+8{}
+9{}
+...and 1 more not shown above.
+            "#
+            .trim()
+        );
+
+        drop(_span4);
+
+        assert_eq!(
+            term.contents(),
+            r#"
+5{}
+7{}
+8{}
+9{}
+10{}
             "#
             .trim()
         );
@@ -460,7 +557,10 @@ hello_world
 
 #[test]
 fn test_change_style_after_show() {
-    let (subscriber, term) = make_helpers(HelpersConfig::default());
+    let (subscriber, term) = make_helpers(HelpersConfig {
+        enable_steady_tick: true,
+        ..Default::default()
+    });
 
     tracing::subscriber::with_default(subscriber, || {
         let span1 = info_span!("foo");
@@ -477,6 +577,34 @@ foo{}
 
         span1.pb_set_style(&ProgressStyle::with_template("hello_world").unwrap());
         thread::sleep(Duration::from_millis(150));
+        assert_eq!(
+            term.contents(),
+            r#"
+hello_world
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
+fn test_change_style_after_show_tick() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let span1 = info_span!("foo");
+        span1.pb_start();
+
+        assert_eq!(
+            term.contents(),
+            r#"
+foo{}
+            "#
+            .trim()
+        );
+
+        span1.pb_set_style(&ProgressStyle::with_template("hello_world").unwrap());
+        span1.pb_tick();
         assert_eq!(
             term.contents(),
             r#"

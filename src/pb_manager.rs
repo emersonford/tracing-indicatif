@@ -15,14 +15,30 @@ use tracing_subscriber::registry::LookupSpan;
 
 use crate::IndicatifSpanContext;
 
+#[derive(Clone)]
+struct RequireDefault;
+
 /// Controls how often progress bars are recalculated and redrawn to the terminal.
+///
+/// This struct must be constructed as
+/// ```
+/// # use tracing_indicatif::TickSettings;
+/// TickSettings {
+///     term_draw_hz: 20,
+///     default_tick_interval: None,
+///     footer_tick_interval: None,
+///     ..Default::default()
+/// }
+/// # ;
+/// ```
+/// as to ensure forward compatibility.
 #[derive(Clone)]
 pub struct TickSettings {
     /// The rate at which to draw to the terminal.
     ///
     /// A value of 20 here means indicatif will redraw the terminal state 20 times a second (i.e.
     /// once every 50ms).
-    term_draw_hz: u8,
+    pub term_draw_hz: u8,
     /// The default interval to pass to `enable_steady_tick` for a new progress bar. This controls
     /// how often the progress bar state is recalculated. Defaults to
     /// `Some(Duration::from_millis(100))`.
@@ -31,7 +47,7 @@ pub struct TickSettings {
     /// controlled by [`Self::term_draw_hz`].
     ///
     /// Using `None` here will disable steady ticks for your progress bars.
-    default_tick_interval: Option<Duration>,
+    pub default_tick_interval: Option<Duration>,
     /// The interval to pass to `enable_steady_tick` for the footer progress bar. This controls
     /// how often the footer progress bar state is recalculated. Defaults to `None`.
     ///
@@ -41,7 +57,11 @@ pub struct TickSettings {
     /// Using `None` here will disable steady ticks for the footer progress bar. Unless you have a
     /// spinner in your footer, you should set this to `None` as we manually redraw the footer
     /// whenever something changes.
-    footer_tick_interval: Option<Duration>,
+    pub footer_tick_interval: Option<Duration>,
+    // Exists solely to require `..Default::default()` at the end of constructing this struct.
+    #[doc(hidden)]
+    #[allow(private_interfaces)]
+    pub require_default: RequireDefault,
 }
 
 impl Default for TickSettings {
@@ -50,6 +70,7 @@ impl Default for TickSettings {
             term_draw_hz: 20,
             default_tick_interval: Some(Duration::from_millis(100)),
             footer_tick_interval: None,
+            require_default: RequireDefault,
         }
     }
 }
@@ -218,6 +239,9 @@ impl ProgressBarManager {
             if let Some(tick_interval) = self.tick_settings.default_tick_interval {
                 pb.enable_steady_tick(tick_interval);
             }
+
+            pb.tick();
+
             pb_span_ctx.progress_bar = Some(pb);
         } else {
             self.add_pending_pb(span_id);
