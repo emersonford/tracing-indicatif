@@ -170,6 +170,8 @@ impl ProgressBarManager {
                     "footer progress bar was not hidden despite there being no pending progress bars"
                 );
 
+                footer_pb.reset();
+
                 if let Some(tick_interval) = self.tick_settings.footer_tick_interval {
                     footer_pb.enable_steady_tick(tick_interval);
                 }
