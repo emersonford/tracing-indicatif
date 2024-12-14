@@ -296,9 +296,15 @@ impl IndicatifSpanContext {
         }
     }
 
-    fn progress_bar_tick(&mut self) {
+    fn progress_bar_tick(&self) {
         if let Some(ref pb) = self.progress_bar {
             pb.tick()
+        }
+    }
+
+    fn progress_bar_finish_clear(&self) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.finish_and_clear();
         }
     }
 }

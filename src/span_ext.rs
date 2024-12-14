@@ -76,6 +76,9 @@ pub trait IndicatifSpanExt {
     ///
     /// Has no effect if the progress bar for this span is not active.
     fn pb_tick(&self);
+
+    /// Finish the progress bar
+    fn pb_finish_clear(&self);
 }
 
 impl IndicatifSpanExt for Span {
@@ -123,6 +126,12 @@ impl IndicatifSpanExt for Span {
     fn pb_tick(&self) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
             indicatif_ctx.progress_bar_tick();
+        });
+    }
+
+    fn pb_finish_clear(&self) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.progress_bar_finish_clear();
         });
     }
 }

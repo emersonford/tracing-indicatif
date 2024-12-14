@@ -149,7 +149,7 @@ impl ProgressBarManager {
         self.tick_settings = tick_settings;
     }
 
-    fn decrement_pending_pb(&mut self) {
+    fn decrement_pending_pb(&self) {
         let prev_val = self
             .pending_progress_bars
             .fetch_sub(1, std::sync::atomic::Ordering::AcqRel);
@@ -262,6 +262,12 @@ impl ProgressBarManager {
 
         // The span closed before we had a chance to show its progress bar.
         if pb.is_hidden() {
+            self.decrement_pending_pb();
+            return;
+        }
+
+        // PorgressBar is already finished
+        if pb.is_finished() {
             self.decrement_pending_pb();
             return;
         }
