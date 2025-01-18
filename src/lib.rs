@@ -578,6 +578,38 @@ where
 
         f(layer.mp.clone())
     }
+
+    fn handle_on_enter(
+        &self,
+        pb_manager: &mut ProgressBarManager,
+        id: &span::Id,
+        ctx: &layer::Context<'_, S>,
+    ) -> Option<ProgressBar> {
+        let span = ctx
+            .span(id)
+            .expect("Span not found in context, this is a bug");
+        let mut ext = span.extensions_mut();
+
+        if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
+            // Start the progress bar when we enter the span for the first time.
+            if indicatif_ctx.progress_bar.is_none() {
+                indicatif_ctx.make_progress_bar(&self.progress_style);
+
+                if let Some(ref parent_span_with_pb) = indicatif_ctx.parent_span {
+                    // Recursively start parent PBs if parent spans have not been entered yet.
+                    let parent_pb = self.handle_on_enter(pb_manager, parent_span_with_pb, ctx);
+
+                    indicatif_ctx.parent_progress_bar = parent_pb;
+                }
+
+                pb_manager.show_progress_bar(indicatif_ctx, id);
+            }
+
+            return indicatif_ctx.progress_bar.to_owned();
+        }
+
+        None
+    }
 }
 
 impl<S, F> layer::Layer<S> for IndicatifLayer<S, F>
@@ -641,49 +673,7 @@ where
     fn on_enter(&self, id: &span::Id, ctx: layer::Context<'_, S>) {
         let mut pb_manager_lock = self.pb_manager.lock().unwrap();
 
-        let span = ctx
-            .span(id)
-            .expect("Span not found in context, this is a bug");
-        let mut ext = span.extensions_mut();
-
-        if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
-            // Start the progress bar when we enter the span for the first time.
-            if indicatif_ctx.progress_bar.is_none() {
-                indicatif_ctx.make_progress_bar(&self.progress_style);
-
-                if let Some(ref parent_span_with_pb) = indicatif_ctx.parent_span {
-                    let parent_span = ctx
-                        .span(parent_span_with_pb)
-                        .expect("Parent span not found in context, this is a bug");
-                    let mut parent_span_ext = parent_span.extensions_mut();
-                    let parent_indicatif_ctx = parent_span_ext
-                        .get_mut::<IndicatifSpanContext>()
-                        .expect(
-                        "IndicatifSpanContext not found in parent span extensions, this is a bug",
-                    );
-
-                    // If the parent span has not been entered once, start the parent progress bar
-                    // for it. We are guaranteed that the parent span has not yet closed because a
-                    // child span for the parent is still open.
-                    //
-                    // NOTE: there's a bug here. if the parent of the parent hasn't started their
-                    // PB, we don't start the parent of the parent's PB. It'd be pretty bad to have
-                    // to iterate up the whole span scope to fix this, so I'm hoping this is a non
-                    // issue for the most part. :(
-                    if parent_indicatif_ctx.progress_bar.is_none() {
-                        parent_indicatif_ctx.make_progress_bar(&self.progress_style);
-
-                        pb_manager_lock.show_progress_bar(parent_indicatif_ctx, id);
-                    }
-
-                    // We can safely unwrap here now since we know a parent progress bar exists.
-                    indicatif_ctx.parent_progress_bar =
-                        Some(parent_indicatif_ctx.progress_bar.to_owned().unwrap());
-                }
-
-                pb_manager_lock.show_progress_bar(indicatif_ctx, id);
-            }
-        }
+        self.handle_on_enter(&mut pb_manager_lock, id, &ctx);
     }
 
     fn on_close(&self, id: span::Id, ctx: layer::Context<'_, S>) {

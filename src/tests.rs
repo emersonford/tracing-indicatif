@@ -876,6 +876,33 @@ fn test_with_span_field_formatter() {
     });
 }
 
+#[test]
+fn test_parent_span_enter_ordering() {
+    let (subscriber, _) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let grandparent_span = info_span!("grandparent");
+        let parent_span = info_span!(parent: &grandparent_span, "parent");
+        let child_span = info_span!(parent: &parent_span, "child");
+
+        let span1 = info_span!("span1");
+        span1.pb_start();
+        let span2 = info_span!("span2");
+        span2.pb_start();
+        let span3 = info_span!("span3");
+        span3.pb_start();
+        let span4 = info_span!("span4");
+        span4.pb_start();
+        let span5 = info_span!("span5");
+        span5.pb_start();
+
+        child_span.pb_start();
+        grandparent_span.pb_start();
+
+        drop(span1);
+    });
+}
+
 // These don't actually run anything, but exist to type check macros.
 #[allow(dead_code)]
 fn type_check_indicatif_println() {
