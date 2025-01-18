@@ -1,4 +1,8 @@
 # Change Log
+## 0.3.9 - 2025-01-18
+* fix panic when entering a grandparent span after a child span was entered (#14)
+* fix panic when using `with_span_field_formatter` (#15)
+
 ## 0.3.8 - 2024-12-01
 * improve docs
 
