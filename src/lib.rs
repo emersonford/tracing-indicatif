@@ -399,7 +399,6 @@ where
 impl<S, F> IndicatifLayer<S, F>
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
-    F: for<'writer> FormatFields<'writer> + 'static,
 {
     #[deprecated(since = "0.2.3", note = "use get_stderr_writer() instead")]
     pub fn get_fmt_writer(&self) -> IndicatifWriter<writer::Stderr> {
