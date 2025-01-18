@@ -14,6 +14,7 @@ use tracing_subscriber::fmt::format::DefaultFields;
 use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 
+use crate::filter::hide_indicatif_span_fields;
 use crate::span_ext::IndicatifSpanExt;
 use crate::suspend_tracing_indicatif;
 use crate::IndicatifLayer;
@@ -856,6 +857,23 @@ hello world
         "#
         .trim()
     );
+}
+
+#[test]
+fn test_with_span_field_formatter() {
+    let indicatif_layer = IndicatifLayer::new()
+        .with_span_field_formatter(hide_indicatif_span_fields(DefaultFields::new()));
+
+    let subscriber = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_writer(indicatif_layer.get_stderr_writer()))
+        .with(indicatif_layer);
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo");
+        _span.pb_start();
+
+        suspend_tracing_indicatif(|| {});
+    });
 }
 
 // These don't actually run anything, but exist to type check macros.

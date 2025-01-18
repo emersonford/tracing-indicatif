@@ -396,7 +396,11 @@ where
 }
 
 // pub methods
-impl<S, F> IndicatifLayer<S, F> {
+impl<S, F> IndicatifLayer<S, F>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    F: for<'writer> FormatFields<'writer> + 'static,
+{
     #[deprecated(since = "0.2.3", note = "use get_stderr_writer() instead")]
     pub fn get_fmt_writer(&self) -> IndicatifWriter<writer::Stderr> {
         self.get_stderr_writer()
@@ -443,10 +447,16 @@ impl<S, F> IndicatifLayer<S, F> {
             progress_style: self.progress_style,
             span_child_prefix_indent: self.span_child_prefix_indent,
             span_child_prefix_symbol: self.span_child_prefix_symbol,
-            get_context: self.get_context,
-            get_stderr_writer_context: self.get_stderr_writer_context,
-            get_stdout_writer_context: self.get_stdout_writer_context,
-            get_multi_progress_context: self.get_multi_progress_context,
+            get_context: WithContext(IndicatifLayer::<S, F2>::get_context),
+            get_stderr_writer_context: WithStderrWriter(
+                IndicatifLayer::<S, F2>::get_stderr_writer_context,
+            ),
+            get_stdout_writer_context: WithStdoutWriter(
+                IndicatifLayer::<S, F2>::get_stdout_writer_context,
+            ),
+            get_multi_progress_context: WithMultiProgress(
+                IndicatifLayer::<S, F2>::get_multi_progress_context,
+            ),
             inner: self.inner,
         }
     }
