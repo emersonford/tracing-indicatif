@@ -1,7 +1,7 @@
 [package]
 name = "tracing-indicatif"
 version = "0.3.10"
-edition = "2021"
+edition = "2024"
 description = "Tracing layer that automatically creates and manages progress bars for active spans."
 license = "MIT"
 repository = "https://github.com/emersonford/tracing-indicatif"
@@ -12,14 +12,14 @@ exclude = ["*.gif"]
 
 [dependencies]
 indicatif = { version = "0.18.0", features = ["in_memory"] }
-tracing = "0.1.40"
-tracing-core = "0.1.32"
-tracing-subscriber = { version = "0.3.18" }
+tracing = "0.1.41"
+tracing-core = "0.1.34"
+tracing-subscriber = { version = "0.3.19" }
 
 [dev-dependencies]
 futures = "0.3.31"
 tokio = { version = "1.41.1", features = ["full"] }
-rand = { version = "0.8.5", features = ["std_rng"] }
+rand = { version = "0.9.1", features = ["std_rng"] }
 dialoguer = "0.11.0"
 
 [lib]

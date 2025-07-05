@@ -7,7 +7,7 @@ use tracing_core::Field;
 use tracing_subscriber::field::RecordFields;
 use tracing_subscriber::{
     field::{MakeVisitor, VisitFmt, VisitOutput},
-    fmt::{format::Writer, FormatFields},
+    fmt::{FormatFields, format::Writer},
 };
 
 /// Wraps around an existing struct that impls [`FormatFields`], but allows for filtering specific

@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
-use rand::thread_rng;
 use rand::Rng;
 use tracing::info;
 use tracing::instrument;
@@ -11,13 +10,14 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 #[instrument]
 async fn do_work(val: u64) -> u64 {
-    let sleep_time = thread_rng().gen_range(Duration::from_millis(250)..Duration::from_millis(500));
+    let sleep_time =
+        rand::rng().random_range(Duration::from_millis(250)..Duration::from_millis(500));
     tokio::time::sleep(sleep_time).await;
 
     info!("doing work for val: {}", val);
 
     let sleep_time =
-        thread_rng().gen_range(Duration::from_millis(500)..Duration::from_millis(1000));
+        rand::rng().random_range(Duration::from_millis(500)..Duration::from_millis(1000));
     tokio::time::sleep(sleep_time).await;
 
     val + 1

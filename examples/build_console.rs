@@ -3,13 +3,12 @@ use std::time::Duration;
 use futures::stream::{self, StreamExt};
 use indicatif::ProgressState;
 use indicatif::ProgressStyle;
-use rand::thread_rng;
 use rand::Rng;
 use tracing::info;
 use tracing::info_span;
 use tracing::instrument;
-use tracing_indicatif::span_ext::IndicatifSpanExt;
 use tracing_indicatif::IndicatifLayer;
+use tracing_indicatif::span_ext::IndicatifSpanExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
@@ -22,10 +21,10 @@ fn elapsed_subsec(state: &ProgressState, writer: &mut dyn std::fmt::Write) {
 #[instrument]
 async fn build_sub_unit(sub_unit: u64) {
     let sleep_time =
-        thread_rng().gen_range(Duration::from_millis(5000)..Duration::from_millis(10000));
+        rand::rng().random_range(Duration::from_millis(5000)..Duration::from_millis(10000));
     tokio::time::sleep(sleep_time).await;
 
-    if thread_rng().gen_bool(0.2) {
+    if rand::rng().random_bool(0.2) {
         info!("sub_unit did something!");
     }
 }
@@ -33,10 +32,10 @@ async fn build_sub_unit(sub_unit: u64) {
 #[instrument]
 async fn build(unit: u64) {
     let sleep_time =
-        thread_rng().gen_range(Duration::from_millis(2500)..Duration::from_millis(5000));
+        rand::rng().random_range(Duration::from_millis(2500)..Duration::from_millis(5000));
     tokio::time::sleep(sleep_time).await;
 
-    let rand_num: f64 = thread_rng().gen();
+    let rand_num: f64 = rand::rng().random();
 
     if rand_num < 0.1 {
         tokio::join!(build_sub_unit(0), build_sub_unit(1), build_sub_unit(2));

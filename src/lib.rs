@@ -40,17 +40,17 @@ use std::any::TypeId;
 use std::marker::PhantomData;
 use std::sync::Mutex;
 
+use indicatif::MultiProgress;
+use indicatif::ProgressBar;
 /// Re-export of [`indicatif`]'s style module for ease of use.
 pub use indicatif::style;
 use indicatif::style::ProgressStyle;
 use indicatif::style::ProgressTracker;
-use indicatif::MultiProgress;
-use indicatif::ProgressBar;
-use tracing_core::span;
 use tracing_core::Subscriber;
-use tracing_subscriber::fmt::format::DefaultFields;
+use tracing_core::span;
 use tracing_subscriber::fmt::FormatFields;
 use tracing_subscriber::fmt::FormattedFields;
+use tracing_subscriber::fmt::format::DefaultFields;
 use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 

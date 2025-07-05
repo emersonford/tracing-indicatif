@@ -10,15 +10,15 @@ use indicatif::TermLike;
 use tracing::info;
 use tracing::info_span;
 use tracing_core::Subscriber;
-use tracing_subscriber::fmt::format::DefaultFields;
 use tracing_subscriber::fmt::MakeWriter;
+use tracing_subscriber::fmt::format::DefaultFields;
 use tracing_subscriber::layer::SubscriberExt;
 
+use crate::IndicatifLayer;
+use crate::TickSettings;
 use crate::filter::hide_indicatif_span_fields;
 use crate::span_ext::IndicatifSpanExt;
 use crate::suspend_tracing_indicatif;
-use crate::IndicatifLayer;
-use crate::TickSettings;
 
 #[derive(Clone)]
 struct InMemoryTermWriter {

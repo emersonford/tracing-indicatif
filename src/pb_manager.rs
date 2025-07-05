@@ -1,15 +1,15 @@
 use std::collections::VecDeque;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
-use indicatif::style::ProgressStyle;
 use indicatif::MultiProgress;
 use indicatif::ProgressBar;
 use indicatif::ProgressDrawTarget;
 use indicatif::ProgressState;
-use tracing_core::span;
+use indicatif::style::ProgressStyle;
 use tracing_core::Subscriber;
+use tracing_core::span;
 use tracing_subscriber::layer;
 use tracing_subscriber::registry::LookupSpan;
 
