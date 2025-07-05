@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use futures::stream::{self, StreamExt};
+use futures::stream::StreamExt;
+use futures::stream::{self};
 use indicatif::ProgressState;
 use indicatif::ProgressStyle;
 use rand::Rng;

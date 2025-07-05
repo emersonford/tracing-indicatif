@@ -16,10 +16,10 @@
 //! so might as well make that relationship explicit.
 //!
 //! An easy quick start for this crate is:
-//! ```
+//! ```rust
+//! use tracing_indicatif::IndicatifLayer;
 //! use tracing_subscriber::layer::SubscriberExt;
 //! use tracing_subscriber::util::SubscriberInitExt;
-//! use tracing_indicatif::IndicatifLayer;
 //!
 //! let indicatif_layer = IndicatifLayer::new();
 //!

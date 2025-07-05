@@ -3,9 +3,10 @@ use std::time::Duration;
 
 use dialoguer::Confirm;
 use tracing::info_span;
+use tracing_indicatif::IndicatifLayer;
 use tracing_indicatif::span_ext::IndicatifSpanExt;
+use tracing_indicatif::suspend_tracing_indicatif;
 use tracing_indicatif::writer::get_indicatif_stderr_writer;
-use tracing_indicatif::{IndicatifLayer, suspend_tracing_indicatif};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 

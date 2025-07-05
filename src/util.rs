@@ -4,11 +4,12 @@ use std::fmt;
 
 use tracing::field::Visit;
 use tracing_core::Field;
+use tracing_subscriber::field::MakeVisitor;
 use tracing_subscriber::field::RecordFields;
-use tracing_subscriber::{
-    field::{MakeVisitor, VisitFmt, VisitOutput},
-    fmt::{FormatFields, format::Writer},
-};
+use tracing_subscriber::field::VisitFmt;
+use tracing_subscriber::field::VisitOutput;
+use tracing_subscriber::fmt::FormatFields;
+use tracing_subscriber::fmt::format::Writer;
 
 /// Wraps around an existing struct that impls [`FormatFields`], but allows for filtering specific
 /// fields from spans or events.

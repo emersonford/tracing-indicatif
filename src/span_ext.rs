@@ -19,8 +19,8 @@ fn apply_to_indicatif_span(span: &Span, f: impl FnMut(&mut IndicatifSpanContext)
 ///
 /// For example, you can call these on the current Span:
 /// ```
-/// use tracing_indicatif::span_ext::IndicatifSpanExt;
 /// use indicatif::ProgressStyle;
+/// use tracing_indicatif::span_ext::IndicatifSpanExt;
 ///
 /// tracing::Span::current().pb_set_style(&ProgressStyle::default_spinner());
 /// ```

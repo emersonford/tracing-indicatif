@@ -4,13 +4,13 @@
 //! # Example Use
 //!
 //! ```
-//! use tracing_subscriber::layer::SubscriberExt;
-//! use tracing_subscriber::util::SubscriberInitExt;
 //! use tracing_indicatif::IndicatifLayer;
 //! use tracing_indicatif::filter::IndicatifFilter;
 //! use tracing_indicatif::filter::hide_indicatif_span_fields;
 //! use tracing_subscriber::fmt::format::DefaultFields;
 //! use tracing_subscriber::layer::Layer;
+//! use tracing_subscriber::layer::SubscriberExt;
+//! use tracing_subscriber::util::SubscriberInitExt;
 //!
 //! let indicatif_layer = IndicatifLayer::new()
 //!     .with_span_field_formatter(hide_indicatif_span_fields(DefaultFields::new()));
@@ -23,12 +23,13 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use tracing_core::{Field, Subscriber};
+use tracing_core::Field;
+use tracing_core::Subscriber;
+use tracing_subscriber::field::MakeVisitor;
+use tracing_subscriber::field::VisitFmt;
+use tracing_subscriber::field::VisitOutput;
+use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::layer::Filter;
-use tracing_subscriber::{
-    field::{MakeVisitor, VisitFmt, VisitOutput},
-    fmt::format::Writer,
-};
 
 use crate::util::FilteredFormatFields;
 
