@@ -1,4 +1,8 @@
 # Change Log
+## 0.3.11 - 2025-07-04
+* make `IndicatifWriter::new` pub
+* upgrade to edition 2024
+
 ## 0.3.10 - 2025-07-04
 * update indicatif to 0.18 (#18)
 
