@@ -28,7 +28,13 @@ impl<T> IndicatifWriter<T>
 where
     T: WriterTarget,
 {
-    pub(crate) fn new(mp: MultiProgress) -> Self {
+    /// Implementation of [`MakeWriter`] that wraps around an existing [`MultiProgress`] and calls
+    /// [`MultiProgress::suspend`] anytime tracing writes to this.
+    ///
+    /// Recommended you obtain this using
+    /// [`IndicatifLayer::get_stderr_writer`](crate::IndicatifLayer::get_stderr_writer) instead of
+    /// this method.
+    pub fn new(mp: MultiProgress) -> Self {
         Self {
             progress_bars: mp,
             inner: PhantomData,
