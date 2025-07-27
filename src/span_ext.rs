@@ -76,6 +76,15 @@ pub trait IndicatifSpanExt {
     ///
     /// Has no effect if the progress bar for this span is not active.
     fn pb_tick(&self);
+
+    /// Resets the progress bar for this span to its initial state.
+    fn pb_reset(&self);
+
+    /// Resets the elapsed time of the progress bar for this span.
+    fn pb_reset_elapsed(&self);
+
+    /// Resets the eta of the progress bar for this span.
+    fn pb_reset_eta(&self);
 }
 
 impl IndicatifSpanExt for Span {
@@ -123,6 +132,24 @@ impl IndicatifSpanExt for Span {
     fn pb_tick(&self) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
             indicatif_ctx.progress_bar_tick();
+        });
+    }
+
+    fn pb_reset(&self) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.reset_progress_bar();
+        });
+    }
+
+    fn pb_reset_elapsed(&self) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.reset_progress_bar_elapsed();
+        });
+    }
+
+    fn pb_reset_eta(&self) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.reset_progress_bar_eta();
         });
     }
 }

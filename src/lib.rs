@@ -301,6 +301,24 @@ impl IndicatifSpanContext {
             pb.tick()
         }
     }
+
+    fn reset_progress_bar(&mut self) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.reset();
+        }
+    }
+
+    fn reset_progress_bar_elapsed(&mut self) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.reset_elapsed();
+        }
+    }
+
+    fn reset_progress_bar_eta(&mut self) {
+        if let Some(ref pb) = self.progress_bar {
+            pb.reset_eta();
+        }
+    }
 }
 
 /// The layer that handles creating and managing indicatif progress bars for active spans. This
