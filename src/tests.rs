@@ -158,6 +158,53 @@ foo{}
 }
 
 #[test]
+fn test_one_pb_with_finish_message() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo").entered();
+        _span.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _span.pb_set_finish_message("done");
+        _span.exit();
+        thread::sleep(Duration::from_millis(10));
+
+        assert_eq!(
+            term.contents(),
+            r#"
+foo done
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
+fn test_two_pb_with_finish_messages() {
+    let (subscriber, term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let _span = info_span!("foo").entered();
+        _span.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _span.pb_set_finish_message("done");
+        _span.exit();
+        let _span2 = info_span!("bar").entered();
+        _span2.pb_set_style(&ProgressStyle::with_template("{span_name} {msg}").unwrap());
+        _span2.pb_set_finish_message("finished");
+        _span2.exit();
+        thread::sleep(Duration::from_millis(10));
+
+        assert_eq!(
+            term.contents(),
+            r#"
+foo done
+bar finished
+            "#
+            .trim()
+        );
+    });
+}
+
+#[test]
 fn test_span_fields() {
     let (subscriber, term) = make_helpers(HelpersConfig::default());
 

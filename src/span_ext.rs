@@ -85,6 +85,12 @@ pub trait IndicatifSpanExt {
 
     /// Resets the eta of the progress bar for this span.
     fn pb_reset_eta(&self);
+
+    /// Sets message of the progress bar that would be displayed when the span is finished.
+    ///
+    /// See also [`finish_with_message`](indicatif::ProgressBar::finish_with_message).
+    /// If unset, the progress bar will be removed when the span is finished.
+    fn pb_set_finish_message(&self, msg: &str);
 }
 
 impl IndicatifSpanExt for Span {
@@ -150,6 +156,12 @@ impl IndicatifSpanExt for Span {
     fn pb_reset_eta(&self) {
         apply_to_indicatif_span(self, |indicatif_ctx| {
             indicatif_ctx.reset_progress_bar_eta();
+        });
+    }
+
+    fn pb_set_finish_message(&self, msg: &str) {
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            indicatif_ctx.set_progress_bar_finish_message(msg.to_string());
         });
     }
 }
