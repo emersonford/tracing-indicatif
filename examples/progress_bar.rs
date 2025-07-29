@@ -40,8 +40,10 @@ async fn main() {
         .init();
 
     let header_span = info_span!("header");
-    header_span.pb_set_style(&ProgressStyle::default_bar());
+    header_span.pb_set_style(&ProgressStyle::with_template("{wide_bar} {pos}/{len} {msg}").unwrap());
     header_span.pb_set_length(20);
+    header_span.pb_set_message("Processing items");
+    header_span.pb_set_finish_message("All items processed");
 
     let header_span_enter = header_span.enter();
 

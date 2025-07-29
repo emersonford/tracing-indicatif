@@ -195,6 +195,8 @@ struct IndicatifSpanContext {
     // Used to quickly compute a child span's prefix without having to traverse up the entire span
     // scope.
     level: u16,
+    // If `Some`, this is the message that will be displayed when the progress bar is finished.
+    finish_message: Option<String>,
 }
 
 impl IndicatifSpanContext {
@@ -318,6 +320,10 @@ impl IndicatifSpanContext {
         if let Some(ref pb) = self.progress_bar {
             pb.reset_eta();
         }
+    }
+
+    fn set_progress_bar_finish_message(&mut self, msg: String) {
+        self.finish_message = Some(msg);
     }
 }
 
@@ -685,6 +691,7 @@ where
             span_name: span.name().to_string(),
             span_child_prefix,
             level,
+            finish_message: None,
         });
     }
 
