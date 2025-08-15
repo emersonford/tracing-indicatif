@@ -213,12 +213,14 @@ impl ProgressBarManager {
         span_id: &span::Id,
     ) {
         if self.active_progress_bars < self.max_progress_bars {
+            let Some(pb) = pb_span_ctx.progress_bar.take() else {
+                return;
+            };
+
             let pb = match pb_span_ctx.parent_progress_bar {
                 // TODO(emersonford): fix span ordering in progress bar, because we use
                 // `insert_after`, we end up showing the child progress bars in reverse order.
-                Some(ref parent_pb) => self
-                    .mp
-                    .insert_after(parent_pb, pb_span_ctx.progress_bar.take().unwrap()),
+                Some(ref parent_pb) => self.mp.insert_after(parent_pb, pb),
                 None => {
                     if self
                         .footer_pb
@@ -226,10 +228,9 @@ impl ProgressBarManager {
                         .map(|footer_pb| !footer_pb.is_hidden())
                         .unwrap_or(false)
                     {
-                        self.mp
-                            .insert_from_back(1, pb_span_ctx.progress_bar.take().unwrap())
+                        self.mp.insert_from_back(1, pb)
                     } else {
-                        self.mp.add(pb_span_ctx.progress_bar.take().unwrap())
+                        self.mp.add(pb)
                     }
                 }
             };

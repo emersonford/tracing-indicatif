@@ -394,7 +394,7 @@ where
                 ProgressStyle::with_template(
                     "...and {pending_progress_bars} more not shown above.",
                 )
-                .unwrap(),
+                .expect("valid template"),
             ),
             TickSettings::default(),
         );
@@ -407,7 +407,7 @@ where
             progress_style: ProgressStyle::with_template(
                 "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
             )
-            .unwrap(),
+            .expect("valid template"),
             span_child_prefix_indent: "  ",
             span_child_prefix_symbol: "↳ ",
             get_context: WithContext(Self::get_context),
@@ -529,20 +529,19 @@ where
         max_progress_bars: u64,
         footer_style: Option<ProgressStyle>,
     ) -> Self {
-        self.pb_manager
-            .get_mut()
-            .unwrap()
-            .set_max_progress_bars(max_progress_bars, footer_style);
+        if let Ok(pb_manager) = self.pb_manager.get_mut() {
+            pb_manager.set_max_progress_bars(max_progress_bars, footer_style);
+        }
 
         self
     }
 
     /// Configures how often progress bars are recalcuated and redrawn to the terminal.
     pub fn with_tick_settings(mut self, tick_settings: TickSettings) -> Self {
-        self.pb_manager
-            .get_mut()
-            .unwrap()
-            .set_tick_settings(tick_settings);
+        if let Ok(pb_manager) = self.pb_manager.get_mut() {
+            pb_manager.set_tick_settings(tick_settings);
+        }
+
         self
     }
 }
@@ -662,9 +661,10 @@ where
         });
         let parent_span_id = parent_span.as_ref().map(|span| span.id());
         let parent_span_ext = parent_span.as_ref().map(|span| span.extensions());
-        let parent_indicatif_ctx = parent_span_ext
-            .as_ref()
-            .map(|ext| ext.get::<IndicatifSpanContext>().unwrap());
+        let parent_indicatif_ctx = parent_span_ext.as_ref().map(|ext| {
+            ext.get::<IndicatifSpanContext>()
+                .expect("validated it exists prior")
+        });
 
         let (span_child_prefix, level) = match parent_indicatif_ctx {
             Some(v) => {
@@ -696,22 +696,22 @@ where
     }
 
     fn on_enter(&self, id: &span::Id, ctx: layer::Context<'_, S>) {
-        let mut pb_manager_lock = self.pb_manager.lock().unwrap();
-
-        self.handle_on_enter(&mut pb_manager_lock, id, &ctx);
+        if let Ok(mut pb_manager_lock) = self.pb_manager.lock() {
+            self.handle_on_enter(&mut pb_manager_lock, id, &ctx);
+        }
     }
 
     fn on_close(&self, id: span::Id, ctx: layer::Context<'_, S>) {
-        let mut pb_manager_lock = self.pb_manager.lock().unwrap();
+        if let Ok(mut pb_manager_lock) = self.pb_manager.lock() {
+            let span = ctx
+                .span(&id)
+                .expect("Span not found in context, this is a bug");
+            let mut ext = span.extensions_mut();
 
-        let span = ctx
-            .span(&id)
-            .expect("Span not found in context, this is a bug");
-        let mut ext = span.extensions_mut();
-
-        // Clear the progress bar only when the span has closed completely.
-        if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
-            pb_manager_lock.finish_progress_bar(indicatif_ctx, &ctx);
+            // Clear the progress bar only when the span has closed completely.
+            if let Some(indicatif_ctx) = ext.get_mut::<IndicatifSpanContext>() {
+                pb_manager_lock.finish_progress_bar(indicatif_ctx, &ctx);
+            }
         }
     }
 
