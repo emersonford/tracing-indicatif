@@ -1,4 +1,7 @@
 # Change Log
+## 0.3.13 - 2025-08-15
+* eliminate panics on internal lock poison
+
 ## 0.3.12 - 2025-07-29
 * Allow progress bar to finish with message (#21)
 * expose progress bar resets (#20)
