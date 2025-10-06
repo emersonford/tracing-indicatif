@@ -51,3 +51,6 @@ name = "stdout_stderr_printing"
 
 [[example]]
 name = "dialoguer_suspend"
+
+[[example]]
+name = "builder"
