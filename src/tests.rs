@@ -950,6 +950,31 @@ fn test_parent_span_enter_ordering() {
     });
 }
 
+#[test]
+fn test_pb_eta() {
+    let (subscriber, _term) = make_helpers(HelpersConfig::default());
+
+    tracing::subscriber::with_default(subscriber, || {
+        let span = info_span!("foo");
+
+        // Before starting the progress bar, eta should be zero.
+        assert_eq!(span.pb_eta(), Duration::new(0, 0));
+
+        // Configure and start a bar so eta is calculated.
+        span.pb_set_style(&ProgressStyle::default_bar());
+        span.pb_set_length(10);
+        span.pb_start();
+
+        // Make a small progress and give indicatif some time to sample.
+        span.pb_inc(1);
+        thread::sleep(Duration::from_millis(150));
+
+        // After starting and progressing, eta should be non-zero (i.e., > 0).
+        let eta = span.pb_eta();
+        assert!(eta > Duration::new(0, 0));
+    });
+}
+
 // These don't actually run anything, but exist to type check macros.
 #[allow(dead_code)]
 fn type_check_indicatif_println() {

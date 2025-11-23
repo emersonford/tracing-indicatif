@@ -1,5 +1,6 @@
 //! Helpers to modify a progress bar associated with a given span.
 use indicatif::ProgressStyle;
+use std::time::Duration;
 use tracing::Span;
 
 use crate::IndicatifSpanContext;
@@ -91,6 +92,9 @@ pub trait IndicatifSpanExt {
     /// See also [`finish_with_message`](indicatif::ProgressBar::finish_with_message).
     /// If unset, the progress bar will be removed when the span is finished.
     fn pb_set_finish_message(&self, msg: &str);
+
+    /// Returns the current ETA
+    fn pb_eta(&self) -> Duration;
 }
 
 impl IndicatifSpanExt for Span {
@@ -163,5 +167,13 @@ impl IndicatifSpanExt for Span {
         apply_to_indicatif_span(self, |indicatif_ctx| {
             indicatif_ctx.set_progress_bar_finish_message(msg.to_string());
         });
+    }
+
+    fn pb_eta(&self) -> Duration {
+        let mut eta: Option<Duration> = None;
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            eta = Some(indicatif_ctx.eta());
+        });
+        eta.unwrap_or_else(|| Duration::new(0, 0))
     }
 }
