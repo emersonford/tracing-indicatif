@@ -95,6 +95,9 @@ pub trait IndicatifSpanExt {
 
     /// Returns the current ETA
     fn pb_eta(&self) -> Duration;
+
+    /// Returns the current elapsed time
+    fn pb_elapsed(&self) -> Duration;
 }
 
 impl IndicatifSpanExt for Span {
@@ -175,5 +178,13 @@ impl IndicatifSpanExt for Span {
             eta = Some(indicatif_ctx.eta());
         });
         eta.unwrap_or_else(|| Duration::new(0, 0))
+    }
+
+    fn pb_elapsed(&self) -> Duration {
+        let mut elapsed: Option<Duration> = None;
+        apply_to_indicatif_span(self, |indicatif_ctx| {
+            elapsed = Some(indicatif_ctx.elapsed());
+        });
+        elapsed.unwrap_or_else(|| Duration::new(0, 0))
     }
 }

@@ -334,6 +334,14 @@ impl IndicatifSpanContext {
             Duration::new(0, 0)
         }
     }
+
+    fn elapsed(&self) -> Duration {
+        if let Some(ref pb) = self.progress_bar {
+            pb.elapsed()
+        } else {
+            Duration::new(0, 0)
+        }
+    }
 }
 
 /// The layer that handles creating and managing indicatif progress bars for active spans. This
