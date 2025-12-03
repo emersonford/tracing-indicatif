@@ -39,6 +39,7 @@
 use std::any::TypeId;
 use std::marker::PhantomData;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use indicatif::MultiProgress;
 use indicatif::ProgressBar;
@@ -324,6 +325,22 @@ impl IndicatifSpanContext {
 
     fn set_progress_bar_finish_message(&mut self, msg: String) {
         self.finish_message = Some(msg);
+    }
+
+    fn eta(&self) -> Duration {
+        if let Some(ref pb) = self.progress_bar {
+            pb.eta()
+        } else {
+            Duration::new(0, 0)
+        }
+    }
+
+    fn elapsed(&self) -> Duration {
+        if let Some(ref pb) = self.progress_bar {
+            pb.elapsed()
+        } else {
+            Duration::new(0, 0)
+        }
     }
 }
 
