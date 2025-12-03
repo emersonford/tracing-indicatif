@@ -97,16 +97,10 @@ impl ProgressBarManager {
         max_progress_bars: u64,
         footer_progress_style: Option<ProgressStyle>,
         tick_settings: TickSettings,
+        mp: MultiProgress,
     ) -> Self {
         let mut s = Self {
-            mp: {
-                let mp = MultiProgress::new();
-                mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(
-                    tick_settings.term_draw_hz,
-                ));
-
-                mp
-            },
+            mp,
             active_progress_bars: 0,
             max_progress_bars: 0,
             pending_progress_bars: Arc::new(AtomicUsize::new(0)),
