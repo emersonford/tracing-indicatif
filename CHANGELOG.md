@@ -1,4 +1,7 @@
 # Change Log
+## 0.3.14 - 2025-12-02
+* feat: expose eta & elapsed (#29)
+
 ## 0.3.13 - 2025-08-15
 * eliminate panics on internal lock poison
 
