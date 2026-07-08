@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use futures::stream::StreamExt;
 use futures::stream::{self};
-use rand::Rng;
+use rand::RngExt;
 use tracing::info;
 use tracing::instrument;
 use tracing_indicatif::IndicatifLayer;
