@@ -4,7 +4,7 @@ use futures::stream::StreamExt;
 use futures::stream::{self};
 use indicatif::ProgressState;
 use indicatif::ProgressStyle;
-use rand::Rng;
+use rand::RngExt;
 use tracing::info;
 use tracing::info_span;
 use tracing::instrument;
