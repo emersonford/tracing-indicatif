@@ -43,6 +43,7 @@ use std::time::Duration;
 
 use indicatif::MultiProgress;
 use indicatif::ProgressBar;
+use indicatif::ProgressDrawTarget;
 /// Re-export of [`indicatif`]'s style module for ease of use.
 pub use indicatif::style;
 use indicatif::style::ProgressStyle;
@@ -398,6 +399,25 @@ where
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Create an [`IndicatifLayerBuilder`] for configuring an [`IndicatifLayer`].
+    ///
+    ///
+    /// # Example
+    /// ```
+    /// use indicatif::ProgressStyle;
+    /// use tracing_indicatif::IndicatifLayer;
+    /// use tracing_subscriber::Registry;
+    /// use tracing_subscriber::layer::SubscriberExt;
+    ///
+    /// let layer = IndicatifLayer::<Registry>::builder()
+    ///     .with_max_progress_bars(10)
+    ///     .with_progress_style(ProgressStyle::with_template("{spinner} {span_name}").unwrap())
+    ///     .build();
+    /// ```
+    pub fn builder() -> IndicatifLayerBuilder<S> {
+        IndicatifLayerBuilder::new()
+    }
 }
 
 impl<S> Default for IndicatifLayer<S>
@@ -405,34 +425,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn default() -> Self {
-        let pb_manager = ProgressBarManager::new(
-            7,
-            Some(
-                ProgressStyle::with_template(
-                    "...and {pending_progress_bars} more not shown above.",
-                )
-                .expect("valid template"),
-            ),
-            TickSettings::default(),
-        );
-        let mp = pb_manager.mp.clone();
-
-        Self {
-            pb_manager: Mutex::new(pb_manager),
-            mp,
-            span_field_formatter: DefaultFields::new(),
-            progress_style: ProgressStyle::with_template(
-                "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
-            )
-            .expect("valid template"),
-            span_child_prefix_indent: "  ",
-            span_child_prefix_symbol: "↳ ",
-            get_context: WithContext(Self::get_context),
-            get_stderr_writer_context: WithStderrWriter(Self::get_stderr_writer_context),
-            get_stdout_writer_context: WithStdoutWriter(Self::get_stdout_writer_context),
-            get_multi_progress_context: WithMultiProgress(Self::get_multi_progress_context),
-            inner: PhantomData,
-        }
+        Self::builder().build()
     }
 }
 
@@ -783,6 +776,273 @@ pub fn suspend_tracing_indicatif<F: FnOnce() -> R, R>(f: F) -> R {
         mp.suspend(f)
     } else {
         f()
+    }
+}
+
+/// A builder for configuring and creating an [`IndicatifLayer`].
+///
+///
+/// # Examples
+///
+/// Basic usage with custom settings:
+/// ```
+/// use indicatif::ProgressStyle;
+/// use std::time::Duration;
+/// use tracing_indicatif::IndicatifLayer;
+/// use tracing_indicatif::TickSettings;
+/// use tracing_subscriber::Registry;
+///
+/// let layer = IndicatifLayer::<Registry>::builder()
+///     .with_max_progress_bars(10)
+///     .with_footer_style(
+///         Some(ProgressStyle::with_template("{spinner} {span_name}")
+///             .expect("template should be valid")),
+///     )
+///     .with_progress_style(
+///         ProgressStyle::with_template("{spinner} {span_name}")
+///             .expect("template should be valid"),
+///     )
+///     .with_tick_settings(TickSettings {
+///         term_draw_hz: 30,
+///         default_tick_interval: Some(Duration::from_millis(50)),
+///         ..Default::default()
+///     })
+///     .build();
+/// ```
+///
+/// Sharing a [`MultiProgress`] instance:
+/// ```
+/// use indicatif::MultiProgress;
+/// use tracing_indicatif::IndicatifLayer;
+/// use tracing_subscriber::Registry;
+///
+/// let mp = MultiProgress::new();
+/// let layer = IndicatifLayer::<Registry>::builder()
+///     .with_multi_progress(mp.clone())
+///     .build();
+/// ```
+pub struct IndicatifLayerBuilder<S, F = DefaultFields> {
+    max_progress_bars: u64,
+    footer_style: Option<ProgressStyle>,
+    tick_settings: TickSettings,
+    draw_target: Option<ProgressDrawTarget>,
+    multi_progress: Option<MultiProgress>,
+    span_field_formatter: F,
+    progress_style: ProgressStyle,
+    span_child_prefix_indent: &'static str,
+    span_child_prefix_symbol: &'static str,
+    inner: PhantomData<S>,
+}
+
+impl<S> IndicatifLayerBuilder<S>
+where
+    S: Subscriber,
+{
+    /// Creates a new builder with default settings.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<S> Default for IndicatifLayerBuilder<S>
+where
+    S: Subscriber,
+{
+    fn default() -> Self {
+        Self {
+            max_progress_bars: 7,
+            footer_style: Some(
+                ProgressStyle::with_template(
+                    "...and {pending_progress_bars} more not shown above.",
+                )
+                .expect("valid template"),
+            ),
+            tick_settings: TickSettings::default(),
+            draw_target: None,
+            multi_progress: None,
+            span_field_formatter: DefaultFields::new(),
+            progress_style: ProgressStyle::with_template(
+                "{span_child_prefix}{spinner} {span_name}{{{span_fields}}}",
+            )
+            .expect("valid template"),
+            span_child_prefix_indent: "  ",
+            span_child_prefix_symbol: "↳ ",
+            inner: PhantomData,
+        }
+    }
+}
+
+impl<S, F> IndicatifLayerBuilder<S, F>
+where
+    S: Subscriber,
+{
+    /// Set the maximum number of progress bars that will be displayed, and the possible footer
+    /// "progress bar" that displays when there are more progress bars than can be displayed.
+    pub fn with_max_progress_bars(mut self, max_progress_bars: u64) -> Self {
+        self.max_progress_bars = max_progress_bars;
+
+        self
+    }
+    /// `footer_style` dictates the appearance of the footer, and the footer will only appear if
+    /// there are more progress bars than can be displayed.
+    ///
+    /// If it is `None`, no footer will be
+    /// displayed.
+    pub fn with_footer_style(mut self, footer_style: Option<ProgressStyle>) -> Self {
+        self.footer_style = footer_style;
+
+        self
+    }
+
+    /// Configures how often progress bars are recalcuated and redrawn to the terminal.
+    pub fn with_tick_settings(mut self, tick_settings: TickSettings) -> Self {
+        self.tick_settings = tick_settings;
+
+        self
+    }
+
+    /// Set the draw target for the progress bars.
+    ///
+    /// By default, progress bars are drawn to stderr with the refresh rate specified in
+    /// [`TickSettings::term_draw_hz`].
+    ///
+    /// Note: This will be ignored if a custom [`MultiProgress`] is set via [`Self::with_multi_progress`],
+    /// as the draw target should be configured on the `MultiProgress` instance directly.
+    pub fn with_draw_target(mut self, draw_target: ProgressDrawTarget) -> Self {
+        self.draw_target = Some(draw_target);
+
+        self
+    }
+
+    /// Set a custom [`MultiProgress`] instance to share state with other indicatif usage.
+    ///
+    /// This allows you to integrate tracing-indicatif progress bars with other progress bars
+    /// in your application that use indicatif directly.
+    ///
+    /// # Example
+    /// ```
+    /// use indicatif::MultiProgress;
+    /// use indicatif::ProgressBar;
+    /// use tracing_indicatif::IndicatifLayer;
+    /// use tracing_subscriber::Registry;
+    ///
+    /// let mp = MultiProgress::new();
+    ///
+    /// // Create a manual progress bar
+    /// let manual_pb = mp.add(ProgressBar::new(100));
+    ///
+    /// // Share the same MultiProgress with tracing-indicatif
+    /// let layer = IndicatifLayer::<Registry>::builder()
+    ///     .with_multi_progress(mp.clone())
+    ///     .build();
+    /// ```
+    pub fn with_multi_progress(mut self, multi_progress: MultiProgress) -> Self {
+        self.multi_progress = Some(multi_progress);
+
+        self
+    }
+
+    /// Override the style used for displayed progress bars.
+    pub fn with_progress_style(mut self, style: ProgressStyle) -> Self {
+        self.progress_style = style;
+
+        self
+    }
+
+    /// Set the indent used to mark the "level" of a given child span's progress bar.
+    ///
+    /// For example, if the given span is two levels deep (iow has two parent spans with progress
+    /// bars), and this is " ", the `{span_child_prefix}` key for this span's progress bar will be
+    /// prefixed with "  ".
+    pub fn with_span_child_prefix_indent(mut self, indent: &'static str) -> Self {
+        self.span_child_prefix_indent = indent;
+
+        self
+    }
+
+    /// Set the symbol used to denote this is a progress bar from a child span.
+    ///
+    /// This is ultimately concatenated with the child prefix indent to make the
+    /// `span_child_prefix` progress bar key.
+    pub fn with_span_child_prefix_symbol(mut self, symbol: &'static str) -> Self {
+        self.span_child_prefix_symbol = symbol;
+
+        self
+    }
+
+    /// Set the formatter for span fields, the result of which will be available as the
+    /// progress bar template key `span_fields`.
+    ///
+    /// The default is the [`DefaultFields`] formatter.
+    pub fn with_span_field_formatter<F2>(self, formatter: F2) -> IndicatifLayerBuilder<S, F2>
+    where
+        F2: for<'writer> FormatFields<'writer> + 'static,
+    {
+        IndicatifLayerBuilder {
+            max_progress_bars: self.max_progress_bars,
+            footer_style: self.footer_style,
+            tick_settings: self.tick_settings,
+            draw_target: self.draw_target,
+            multi_progress: self.multi_progress,
+            span_field_formatter: formatter,
+            progress_style: self.progress_style,
+            span_child_prefix_indent: self.span_child_prefix_indent,
+            span_child_prefix_symbol: self.span_child_prefix_symbol,
+            inner: self.inner,
+        }
+    }
+}
+
+impl<S, F> IndicatifLayerBuilder<S, F>
+where
+    S: Subscriber + for<'a> LookupSpan<'a>,
+    F: for<'writer> FormatFields<'writer> + 'static,
+{
+    /// Builds the [`IndicatifLayer`] with the configured settings.
+    pub fn build(self) -> IndicatifLayer<S, F> {
+        // If user sets a custom MultiProgress, we assume they also want to own draw target settings.
+        let mp = if let Some(multi_progress) = self.multi_progress {
+            multi_progress
+        } else {
+            let mp = MultiProgress::new();
+
+            if let Some(draw_target) = self.draw_target {
+                mp.set_draw_target(draw_target);
+            } else {
+                mp.set_draw_target(ProgressDrawTarget::stderr_with_hz(
+                    self.tick_settings.term_draw_hz,
+                ));
+            }
+
+            mp
+        };
+
+        let pb_manager = ProgressBarManager::new(
+            self.max_progress_bars,
+            self.footer_style,
+            self.tick_settings,
+            mp.clone(),
+        );
+
+        IndicatifLayer {
+            pb_manager: Mutex::new(pb_manager),
+            mp,
+            span_field_formatter: self.span_field_formatter,
+            progress_style: self.progress_style,
+            span_child_prefix_indent: self.span_child_prefix_indent,
+            span_child_prefix_symbol: self.span_child_prefix_symbol,
+            get_context: WithContext(IndicatifLayer::<S, F>::get_context),
+            get_stderr_writer_context: WithStderrWriter(
+                IndicatifLayer::<S, F>::get_stderr_writer_context,
+            ),
+            get_stdout_writer_context: WithStdoutWriter(
+                IndicatifLayer::<S, F>::get_stdout_writer_context,
+            ),
+            get_multi_progress_context: WithMultiProgress(
+                IndicatifLayer::<S, F>::get_multi_progress_context,
+            ),
+            inner: PhantomData,
+        }
     }
 }
 
